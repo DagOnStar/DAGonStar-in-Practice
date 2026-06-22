@@ -1,0 +1,386 @@
+\chapter{Case Study: The Environmental Application}
+\label{ch:case-study}
+
+This chapter applies the entire theoretical and mechanical apparatus
+developed in Parts~I and~II to the repository's environmental application
+example --- the closest the documentation comes to a complete, realistic
+computational environmental science workflow, and the natural capstone for a
+textbook organized around the workshop title \emph{``Orchestrating AI--HPC
+Workflows for Computational Environmental Science.''}
+
+\section{Source and Scope}
+
+\begin{center}
+\textit{Source directory:} \texttt{examples/envapp}
+\end{center}
+
+\begin{lstlisting}[style=bash, caption={Layout of the environmental application example.}]
+examples/envapp/
+  app.py
+  README.md
+  models/
+  models/wrf/
+  models/wrf/scripts/
+  models/wrf/utils/
+  archive2plot/
+  publishWrf/
+\end{lstlisting}
+
+\begin{cautionbox}
+The repository describes this material explicitly as a \emph{mockup/sanitized
+demonstration} of a larger, real environmental forecasting system. It is not
+the production code running at the University of Naples ``Parthenope''
+Center for Monitoring and Modeling Marine and Atmosphere applications;
+treat it as a structurally faithful template, not as a deployable forecasting
+system.
+\end{cautionbox}
+
+\section{Scientific Purpose}
+
+The environmental application examples are research-oriented demonstration
+material inspired by real forecasting workflows involving three families of
+numerical models:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{WRF} --- the Weather Research and Forecasting model, an
+    atmospheric numerical weather prediction system;
+  \item \textbf{ROMS} --- the Regional Ocean Modeling System, a
+    free-surface, terrain-following ocean circulation model;
+  \item \textbf{WaComM++} --- a marine pollution transport-and-diffusion
+    model used for contaminant and Lagrangian particle tracking.
+\end{itemize}
+
+\section{Concepts Exercised}
+
+The example exercises, in combination, every architectural concept developed
+in this book:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item wrapping external scientific model executables
+    (\Cref{ch:external-software});
+  \item preparing model input files;
+  \item executing model stages, potentially across \texttt{BATCH},
+    \texttt{SLURM}, and \texttt{DOCKER} backends (\Cref{ch:backends});
+  \item post-processing outputs;
+  \item rendering archived products to plots;
+  \item publishing products, naturally suited to a \texttt{WEB} task
+    (\Cref{ch:web-tasks}).
+\end{itemize}
+
+\section{The WRF Pipeline as a Canonical Numerical-Weather Workflow}
+
+The \texttt{models/wrf/scripts/} directory includes shell-oriented wrappers
+representing the standard structure of a numerical weather workflow:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Script family} & \textbf{Role} \\
+\midrule
+\texttt{geogrid}  & Define and prepare the model's geographical domain. \\
+\texttt{ungrib}   & Decode gridded meteorological input (e.g.\ GRIB) data. \\
+\texttt{metgrid}  & Horizontally interpolate meteorological data onto the domain. \\
+\texttt{real}     & Vertically interpolate and generate initial/boundary conditions. \\
+\texttt{wrf}      & Execute the core atmospheric simulation. \\
+\texttt{publishWrfOutput} & Export and disseminate simulation products. \\
+namelist generators & Produce the model's run-time configuration files. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This script family corresponds to the canonical six-stage structure of a
+WRF-based forecast:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item configure domain and static geographical data;
+  \item prepare meteorological input;
+  \item generate model-ready files;
+  \item run initialization;
+  \item run simulation;
+  \item post-process and publish outputs.
+\end{enumerate}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=8mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=20mm, minimum height=10mm, font=\sffamily\scriptsize, align=center},
+  ext/.style={rectangle, rounded corners, draw=dagonaccent, very thick,
+    fill=teal!6, minimum width=20mm, minimum height=10mm, font=\sffamily\scriptsize, align=center},
+  arr/.style={-{Stealth[length=2.2mm]}, thick, dagonblue}
+]
+  \node[task] (geo) {geogrid};
+  \node[task, right=14mm of geo] (ung) {ungrib};
+  \node[task, right=14mm of ung] (met) {metgrid};
+  \node[task, right=14mm of met] (real) {real};
+  \node[task, right=14mm of real] (wrf) {wrf\\ \footnotesize (\texttt{SLURM})};
+  \node[task, right=14mm of wrf] (a2p) {archive2plot};
+  \node[ext, right=14mm of a2p] (pub) {publishWrf\\ \footnotesize (\texttt{WEB})};
+  \draw[arr] (geo) -- (met);
+  \draw[arr] (ung) -- (met);
+  \draw[arr] (met) -- (real);
+  \draw[arr] (real) -- (wrf);
+  \draw[arr] (wrf) -- (a2p);
+  \draw[arr] (a2p) -- (pub);
+\end{tikzpicture}
+\caption{A DAGonStar-style DAG induced by the canonical WRF pipeline.
+\texttt{geogrid} and \texttt{ungrib} are independent producers consumed by
+\texttt{metgrid}, after which the chain becomes linear through simulation,
+rendering, and publication. Backend annotations indicate a representative
+(not prescriptive) execution-environment assignment, following
+\Cref{tab:backend-selection}.}
+\label{fig:wrf-pipeline}
+\end{figure}
+
+\section{Post-Processing: \texttt{archive2plot}}
+
+\texttt{archive2plot} contains a utility for rendering post-processed model
+output as image plots:
+
+\begin{lstlisting}[style=bash]
+archive2plot/
+  archive2plot.py
+  Render.py
+  maps.json
+  archive2plot.conf
+  requirements.txt
+  (shapefile documentation)
+\end{lstlisting}
+
+In DAGonStar terms, \texttt{archive2plot} is naturally either a
+\texttt{BATCH} task (if invoked as a standalone Python script with its own
+environment already on the host) or a \texttt{NATIVE} task
+(\Cref{ch:native-tasks}), if its rendering logic is refactored into an
+importable, module-level function consuming a staged NetCDF product and
+producing a declared image output.
+
+\section{Prerequisites and Operational Honesty}
+
+The documentation is explicit that these examples may require substantial
+external software:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item compiled WRF and related preprocessing tools;
+  \item geospatial Python libraries;
+  \item NetCDF/HDF libraries;
+  \item model input datasets;
+  \item shapefiles or map assets;
+  \item HPC or containerized execution environments.
+\end{itemize}
+
+\begin{cautionbox}
+These are not generic unit tests. They should be treated as scientific
+application \emph{templates} --- structurally complete, but requiring
+site-specific software, data, and credentials before they can be executed
+end to end. This is consistent with the project's own examples-catalog
+guidance (\Cref{ch:examples-catalog}), which distinguishes locally verifiable
+examples from those requiring external software or services.
+\end{cautionbox}
+
+\section{Adapting the Pattern: A Five-Step Method}
+
+The documentation's own adaptation checklist, already previewed structurally
+in \Cref{ch:external-software}'s five-stage pattern, applies directly here:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item identify each model executable as a task;
+  \item define all file products exchanged between tasks;
+  \item wrap each executable in a reproducible launcher script;
+  \item encode cross-task data products with \texttt{workflow://};
+  \item verify each model stage independently before running the full
+    workflow.
+\end{enumerate}
+
+\begin{example}
+Applying step~5 concretely to \Cref{fig:wrf-pipeline}: before composing the
+full seven-task DAG, a researcher should first verify \texttt{geogrid} alone
+(does it produce the expected static geographical files?), then
+\texttt{ungrib} alone (does it correctly decode the chosen meteorological
+input source?), and only then connect them through \texttt{metgrid} via
+\texttt{workflow://} references. This staged verification strategy mirrors
+the local-structural-verification pattern already introduced for Slurm and
+remote tasks in \Cref{ch:backends}: verify each component in isolation before
+trusting the composed graph.
+\end{example}
+
+\section{Real-World Anchoring}
+
+The environmental application generalizes patterns from real, funded
+deployments that the project's own acknowledgments document
+(reproduced in full in the Bibliography):
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{MytilX} --- a research agreement on modelling mytilus
+    (mussel) farming at scale, in which DAGonStar orchestrates the
+    production workflow delivering study-zone-specific weather, marine,
+    pollutant, and farmed-mussel contamination forecasts and predictions.
+  \item \textbf{MytilEx} --- a research contract on mussel farming with HPC
+    and AI, in which DAGonStar orchestrates the daily production of 168
+    forecast hours of weather, marine, pollutant, and contamination
+    predictions.
+  \item \textbf{ADMIRE} (EuroHPC H2020, Work Package~7) --- DAGonStar
+    orchestrates an environmental application delivering on-demand weather,
+    marine, and pollutant simulations and forecasts for the Campania Region,
+    Italy.
+\end{itemize}
+
+These deployments are the operational referent for the synthesis chapter
+that follows: real systems in which DAGonStar coordinates exactly the kind of
+numerical-model, post-processing, and publication chain sketched in
+\Cref{fig:wrf-pipeline}, at production cadence.
+
+\section{Reading the WRF Pipeline as a Layered Dependency Structure}
+
+\Cref{fig:wrf-pipeline} presented the WRF pipeline as a DAG; it is worth
+examining more closely \emph{why} the pipeline has the particular dependency
+shape it does, since the shape directly reflects the scientific structure
+of numerical weather prediction, not an arbitrary engineering choice.
+
+\texttt{geogrid} and \texttt{ungrib} are independent of one another because
+they consume entirely disjoint kinds of input: \texttt{geogrid} processes
+static geographical data (terrain elevation, land use, soil type) that does
+not depend on any particular forecast initialization time, while
+\texttt{ungrib} decodes time-varying meteorological fields (temperature,
+pressure, wind) from an external data source. Because neither task's output
+depends on the other's, the engine is free, per the topological-ordering
+discussion of \Cref{sec:topological-ordering}, to execute them concurrently
+--- a genuine, not merely theoretical, opportunity for parallelism that a
+researcher decomposing this pipeline by hand should explicitly preserve by
+\emph{not} introducing an artificial explicit dependency between the two
+merely because they happen to be related model-preparation steps.
+
+\texttt{metgrid} depends on \emph{both}, because horizontal interpolation
+onto the model's domain genuinely requires both the static geography
+\texttt{geogrid} produced and the decoded meteorological fields
+\texttt{ungrib} produced; this is a genuine data dependency in the sense of
+\Cref{sec:task-vs-data}, not a procedural one, and is correctly expressed,
+in a DAGonStar implementation of this pipeline, through two separate
+\texttt{workflow://} references inside \texttt{metgrid}'s command rather
+than through a single combined reference. From \texttt{metgrid} onward, the
+chain becomes strictly linear --- \texttt{real}, then \texttt{wrf}, then
+post-processing and publication --- because each subsequent stage
+genuinely requires the immediately preceding stage's specific numerical
+output and nothing else.
+
+\begin{practicebox}
+This analysis generalizes into a useful design heuristic for decomposing any
+new, unfamiliar scientific pipeline into a DAGonStar workflow: before
+writing any \texttt{DagonTask} code, first identify, for each candidate
+stage, the \emph{minimal} set of upstream products it genuinely requires,
+and resist the temptation to introduce additional, unnecessary dependency
+edges purely because two stages are conceptually related or were
+historically run in a fixed order out of habit rather than necessity. Every
+unnecessary edge removes a genuine opportunity for the engine to exploit
+concurrency, exactly as an artificial \texttt{geogrid}~$\to$~\texttt{ungrib}
+edge would needlessly serialize two genuinely independent stages of the
+pipeline examined here.
+\end{practicebox}
+
+\section{Resource Heterogeneity Within a Single Pipeline}
+
+A second dimension worth making explicit, beyond the dependency structure
+already analyzed, is the heterogeneity of \emph{computational resource
+requirements} across the WRF pipeline's stages --- a heterogeneity that
+directly motivates the backend-selection guidance of
+\Cref{tab:backend-selection} and that a researcher decomposing a similar
+pipeline should reason about explicitly rather than defaulting every stage
+to the same backend out of convenience.
+
+\texttt{geogrid} and \texttt{ungrib} are typically I/O-bound, data-
+preparation steps whose resource demands are modest relative to the core
+simulation; running them as local \texttt{BATCH} tasks, or lightweight
+remote \texttt{BATCH} tasks, is usually entirely adequate. \texttt{wrf}
+itself, the core atmospheric simulation, is typically the pipeline's most
+computationally demanding stage by a wide margin, routinely requiring
+many-core, multi-node parallel execution over a span of hours --- precisely
+the profile \texttt{TaskType.SLURM} exists to address, with its explicit
+\texttt{ntasks}, \texttt{nodes}, and \texttt{time} resource-request
+parameters (\Cref{ch:backends}) mapping directly onto the simulation's
+actual computational needs. \texttt{archive2plot}'s rendering step sits
+between these two extremes: more demanding than simple data preparation,
+since it processes the simulation's full output volume, but typically far
+less demanding than the simulation itself, and frequently dependent on a
+specific geospatial software stack (the shapefile and mapping libraries
+noted in \Cref{ch:case-study}'s file listing) that argues for
+\texttt{TaskType.DOCKER} on dependency-management grounds, independent of
+its computational intensity.
+
+\begin{practicebox}
+The general principle this illustrates: a realistic scientific pipeline's
+backend assignment should follow the \emph{resource and dependency profile
+of each individual stage}, not a single, pipeline-wide default. The
+environmental application example's implicit backend diversity --- light
+local or remote tasks for preparation, Slurm for the simulation core, Docker
+for a specialized rendering toolchain --- is not an arbitrary illustrative
+choice in \Cref{fig:wrf-pipeline}; it is the natural consequence of applying
+\Cref{tab:backend-selection}'s selection criteria stage by stage to a
+pipeline whose stages genuinely differ in their computational and
+dependency-management needs.
+\end{practicebox}
+
+\section{From Demonstration Pipeline to Operational Deployment}
+
+\Cref{ch:case-study} was careful to distinguish the sanitized, demonstration
+\texttt{examples/envapp} material from the production deployments it
+generalizes (MytilX, MytilEx, ADMIRE), and it is worth examining, in more
+depth than the original chapter's brief mention, what additional concerns
+typically separate a demonstration pipeline from an operational one running
+at production cadence --- concerns this book's earlier chapters have each
+already introduced individually, but that converge specifically at the
+point of operational deployment.
+
+An operational, daily-cadence forecasting chain must additionally address:
+\textbf{scheduling} --- something external to DAGonStar itself (a cron job,
+a system-level scheduler, or a controller using the asynchronous-launch
+pattern of \Cref{ch:meta-async}) must trigger a new workflow run at the
+appropriate cadence; \textbf{failure recovery across runs}, not merely
+within a single run --- checkpointing (\Cref{ch:lessons-05-07}) addresses
+resuming a single failed run, but an operational deployment must also
+decide what happens if an entire day's forecast cycle fails outright, a
+question outside the scope of any single workflow's own configuration;
+\textbf{monitoring and alerting} --- the lifecycle event hooks of
+\Cref{ch:meta-async} provide the mechanism, but an operational deployment
+must build the actual alerting logic on top of them; and \textbf{data
+retention policy} --- \Cref{ch:lessons-05-07}'s checkpoint-persistence
+discussion already noted that checkpoint reuse depends on scratch
+directories remaining on disk, which has direct, compounding storage-cost
+implications once a pipeline runs daily indefinitely rather than once, for
+a tutorial exercise.
+
+\begin{cautionbox}
+None of these four operational concerns is addressed by DAGonStar's own
+documented feature set in isolation; each requires deliberate engineering
+on top of the mechanisms this book has developed. A researcher planning to
+move from a demonstration pipeline, of the kind examined in this chapter, to
+genuine operational deployment should treat this list as a minimum
+checklist of additional design work required, not as a list of problems
+DAGonStar itself solves automatically.
+\end{cautionbox}
+
+\section{Chapter Summary}
+
+The environmental application example is the richest demonstration of
+DAGonStar's intended domain: orchestrating heterogeneous model components and
+data products across scientific software stacks. This chapter additionally
+analyzed the WRF pipeline's dependency structure as a direct reflection of
+the underlying numerical weather prediction science rather than an arbitrary
+engineering choice, examined the resource heterogeneity across pipeline
+stages that motivates differentiated backend selection, and enumerated the
+additional operational concerns --- scheduling, cross-run failure recovery,
+monitoring, and data retention --- that separate a demonstration pipeline
+from a genuine, production-cadence operational deployment of the kind the
+MytilX, MytilEx, and ADMIRE acknowledgments describe. \Cref{ch:examples-catalog}
+now surveys the remainder of the project's example catalog, and
+\Cref{ch:synthesis} closes the book by assembling these pieces into the
+shape of a complete, AI-augmented, operational forecasting chain.
+
+\begin{exercise}
+Using the dependency-structure analysis of this chapter's first section,
+identify one further pair of stages in \Cref{fig:wrf-pipeline}, beyond
+\texttt{geogrid}/\texttt{ungrib}, that could in principle run concurrently
+if the pipeline were extended to include a second, independent
+post-processing path (for instance, a statistical verification step
+computed directly from \texttt{wrf}'s output, alongside
+\texttt{archive2plot}'s rendering step). Sketch the resulting DAG.
+\end{exercise}

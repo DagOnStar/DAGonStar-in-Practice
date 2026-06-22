@@ -1,0 +1,370 @@
+\chapter{Cycle Detection, Checkpointing, and Data Staging Modes}
+\label{ch:lessons-05-07}
+
+\begin{lessonbox}{Lesson 5 --- Detect and Fix Dependency Cycles}
+\textbf{Objective.} Learn how DAGonStar rejects invalid workflow graphs.
+
+\textbf{Concept.} A DAG cannot contain cycles. If \texttt{A} depends on
+\texttt{B} and \texttt{B} depends on \texttt{A}, no valid execution order
+exists.
+
+\textbf{Code} (\texttt{lesson\_05\_cycle.py}):
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+workflow = Workflow("Lesson05")
+
+a = DagonTask(TaskType.BATCH, "A", "echo A")
+b = DagonTask(TaskType.BATCH, "B", "echo B")
+
+workflow.add_task(a)
+workflow.add_task(b)
+
+b.add_dependency_to(a)
+a.add_dependency_to(b)
+
+workflow.Validate_WF()
+\end{lstlisting}
+
+\textbf{Run:}
+\begin{lstlisting}[style=bash]
+python lesson_05_cycle.py
+\end{lstlisting}
+
+\textbf{Expected behavior.} The script raises an exception reporting a
+cycle.
+
+\textbf{Fix.} Remove one edge (keep only \texttt{b.add\_dependency\_to(a)}),
+then:
+\begin{lstlisting}
+workflow.Validate_WF()
+workflow.run()
+\end{lstlisting}
+
+\textbf{Scientific practice note.} Cycle detection is not only a software
+constraint. It also catches ambiguous scientific logic, such as attempting
+to calibrate a model using results that the same model has not produced yet.
+\end{lessonbox}
+
+\section{Discussion: Cycles as Scientific Modeling Errors}
+
+\Cref{sec:dag-theory} gave the graph-theoretic definition of acyclicity;
+Lesson~5 demonstrates the engine enforcing it operationally, via
+\texttt{Validate\_WF()}. The scientific practice note deserves emphasis
+because it reframes a software constraint as a \emph{modeling} constraint: a
+cycle in a workflow DAG is frequently the symptom of a circular scientific
+argument --- calibrating a model on its own not-yet-produced output, or
+post-processing a product that the post-processing step itself is meant to
+generate. Treat a cycle-validation failure as an invitation to re-examine the
+experimental design, not merely a bug to silence.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=26mm,
+  task/.style={rectangle, rounded corners, draw=red!60!black, very thick,
+    fill=red!5, minimum width=20mm, minimum height=10mm, font=\sffamily\bfseries},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, red!60!black}
+]
+  \node[task] (A) {A};
+  \node[task, right=of A] (B) {B};
+  \draw[arr] (A.north east) to[bend left=35] node[above,font=\sffamily\scriptsize]{B depends on A} (B.north west);
+  \draw[arr] (B.south west) to[bend left=35] node[below,font=\sffamily\scriptsize]{A depends on B} (A.south east);
+\end{tikzpicture}
+\caption{An invalid two-node cycle: neither task can legally run first.
+\texttt{Validate\_WF()} rejects this graph before execution begins.}
+\label{fig:cycle}
+\end{figure}
+
+\begin{lessonbox}{Lesson 6 --- Use Checkpoint Files}
+\textbf{Objective.} Record task completion metadata and resume a workflow.
+
+\textbf{Concept.} \texttt{Workflow(checkpoint\_file=...)} writes checkpoint
+metadata after execution. \texttt{workflow.run(resume\_checkpoint\_file=...)}
+can reuse completed task directories when the checkpoint records success and
+the working directory still exists.
+
+\textbf{Code} (\texttt{lesson\_06.py}):
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+def build_workflow():
+    workflow = Workflow("Lesson06", checkpoint_file="lesson_06_checkpoint.json")
+    slow = DagonTask(TaskType.BATCH, "slow", "echo computed > result.txt")
+    workflow.add_task(slow)
+    workflow.make_dependencies()
+    return workflow
+
+
+if __name__ == "__main__":
+    workflow = build_workflow()
+    workflow.run(resume_checkpoint_file="lesson_06_checkpoint.json")
+\end{lstlisting}
+
+\textbf{Run twice:}
+\begin{lstlisting}[style=bash]
+python lesson_06.py
+python lesson_06.py
+\end{lstlisting}
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+sed -n '1,200p' lesson_06_checkpoint.json
+\end{lstlisting}
+
+\textbf{Expected behavior.} After the first run, the checkpoint file contains
+the task working directory and exit code. On a later run, DAGonStar can skip
+a task already marked successful if the recorded working directory still
+exists.
+
+\textbf{Scientific practice note.} Checkpointing is most valuable for
+expensive simulations. Preserve checkpoint files together with enough
+metadata to know which code and configuration produced them.
+\end{lessonbox}
+
+\section{Discussion: Checkpoint Semantics and Their Limits}
+
+The checkpoint file written by Lesson~6 has the shape:
+
+\begin{lstlisting}[caption={Representative checkpoint JSON shape.}]
+{
+  "_scratch_dir": "/tmp/",
+  "Experiment.A": {
+    "working_dir": "/tmp/1710000000000-A",
+    "workflow": "Experiment",
+    "name": "A",
+    "code": 0
+  }
+}
+\end{lstlisting}
+
+Checkpoint keys are built from \texttt{<workflow-name>.<task-name>}; stable
+naming is therefore essential, and renaming a task is, from the checkpoint
+system's perspective, indistinguishable from introducing a new task.
+Checkpoint reuse additionally requires that the \emph{recorded working
+directory still exist} on disk --- a checkpoint entry alone cannot recover
+output that scratch-directory garbage collection or manual cleanup has
+already removed.
+
+\begin{cautionbox}
+Checkpoints record task \emph{success} and a working-directory path, not full
+semantic equivalence of code, inputs, or parameters. If a task's command
+changes but its name and previous success remain recorded, checkpoint reuse
+may incorrectly skip recomputation. For rigorous scientific reproducibility,
+store code version, configuration, input checksums, and software environment
+\emph{alongside} the checkpoint file, not only inside it.
+\end{cautionbox}
+
+A complete reference treatment of checkpoint semantics --- including remote,
+Docker, and cloud checkpointing caveats --- is reproduced in Appendix~D.
+
+\begin{lessonbox}{Lesson 7 --- Choose Data Staging Modes}
+\textbf{Objective.} Control how DAGonStar stages files between tasks.
+
+\textbf{Concept.} The workflow default data mover is set with
+\texttt{workflow.set\_data\_mover(...)}. Local workflows commonly use
+\texttt{DataMover.COPY} or \texttt{DataMover.LINK}.
+
+\textbf{Code} (\texttt{lesson\_07.py}):
+\begin{lstlisting}
+from dagon import DataMover, Workflow
+from dagon.task import DagonTask, TaskType
+
+
+if __name__ == "__main__":
+    workflow = Workflow("Lesson07")
+    workflow.set_data_mover(DataMover.COPY)
+
+    source = DagonTask(TaskType.BATCH, "source", "mkdir -p out; echo sample > out/data.txt")
+    sink = DagonTask(TaskType.BATCH, "sink", "cat workflow:///source/out/data.txt > copied.txt")
+
+    workflow.add_task(source)
+    workflow.add_task(sink)
+    workflow.make_dependencies()
+    workflow.run()
+\end{lstlisting}
+
+\textbf{Run:}
+\begin{lstlisting}[style=bash]
+python lesson_07.py
+\end{lstlisting}
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+DIR=$(find /tmp -maxdepth 1 -type d -name '*-sink' | tail -n 1)
+sed -n '1,80p' "$DIR/copied.txt"
+\end{lstlisting}
+
+\textbf{Expected behavior.} The sink task receives a copy of the source file
+and writes \texttt{copied.txt}.
+
+\textbf{Experiment.} Change to \texttt{workflow.set\_data\_mover(DataMover.LINK)},
+run again, and inspect the generated launcher script to observe the staging
+command difference.
+
+\textbf{Scientific practice note.} \texttt{COPY} is often better for archival
+reproducibility because downstream tasks get their own materialized inputs.
+\texttt{LINK} can reduce storage and I/O cost when intermediate files remain
+stable.
+\end{lessonbox}
+
+\section{Discussion: Choosing a Staging Policy}
+
+The choice between \texttt{COPY} and \texttt{LINK} is a genuine engineering
+trade-off, not a stylistic preference, and it should be made deliberately per
+workflow (or even per task, since \texttt{set\_data\_mover} may also be
+invoked at task scope):
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{\texttt{COPY}} materializes an independent file in the
+    consumer's scratch directory. This maximizes archival reproducibility ---
+    a consumer task directory, once created, is self-contained even if the
+    producer's directory is later cleaned up --- at the cost of doubled
+    storage and I/O for large scientific products (e.g.\ multi-gigabyte
+    NetCDF restart files).
+  \item \textbf{\texttt{LINK}} creates a symbolic link rather than a copy.
+    This is appropriate when intermediate files are large, numerous, and
+    known to remain stable for the lifetime of the workflow run, but it
+    \emph{breaks} the self-containment property: deleting the producer's
+    scratch directory invalidates every consumer that linked to it.
+\end{itemize}
+
+\begin{practicebox}
+A useful operational rule: use \texttt{COPY} as the default for any
+workflow whose outputs will be archived or published, and consider
+\texttt{LINK} only for large, purely intermediate products that are deleted
+at the end of a single run and never separately archived.
+\end{practicebox}
+
+\section{Cycle Detection as an Instance of a General Algorithmic Problem}
+
+\Cref{sec:topological-ordering} already established the precise mathematical
+relationship between acyclicity and the existence of a valid execution
+order; it is worth, in this chapter, connecting that result to the concrete
+\emph{algorithmic} problem \texttt{Validate\_WF()} must solve, since the
+choice of algorithm has direct consequences for how the engine scales to
+large, realistic scientific workflows.
+
+Cycle detection in a directed graph is classically solved by depth-first
+search, tracking, for each node, whether it is unvisited, currently on the
+recursion stack (``in progress''), or fully processed (``done''). A cycle is
+detected precisely when the search encounters an edge leading to a node
+already marked ``in progress'' --- that is, a node reachable from itself
+through the edges currently being traversed. This algorithm runs in time
+linear in the number of nodes plus edges, $O(|V| + |E|)$, which matters in
+practice: a workflow with hundreds or thousands of tasks --- not unrealistic
+for an ensemble of environmental simulations, each itself decomposed
+according to the granularity discussion of \Cref{sec:task-granularity} ---
+can still be validated in time proportional to its own size, rather than,
+say, quadratic time that would make validation itself a bottleneck on large
+DAGs.
+
+\begin{practicebox}
+The practical lesson for a workflow author is reassuring rather than
+cautionary: because cycle detection is cheap relative to the cost of running
+even a single scientific task, there is essentially no performance reason to
+ever omit a \texttt{Validate\_WF()} call, or to avoid restructuring a large
+workflow's dependencies during development for fear of expensive
+revalidation. The discipline recommended throughout this book --- validate
+before running, especially for workflows with expensive or non-idempotent
+tasks (\Cref{ch:lessons-01-02}) --- is essentially free in computational
+terms.
+\end{practicebox}
+
+\section{Checkpointing in the Broader Context of Fault-Tolerant Computing}
+
+Checkpointing is a technique with a long history in fault-tolerant and
+high-performance computing, predating workflow engines entirely: long-running
+parallel simulations have, for decades, periodically written their internal
+state to disk precisely so that a hardware failure partway through a
+multi-day run need not force a complete restart from the beginning. It is
+useful to situate DAGonStar's task-level checkpointing within this broader
+tradition, both to clarify what it does provide and to be precise about
+what it does not.
+
+Classical \emph{application-level} checkpointing, of the kind a simulation
+code implements internally, captures fine-grained numerical state --- the
+full field values of a partially completed timestep, for instance --- and
+typically requires the application itself to be written with checkpoint
+support in mind. DAGonStar's checkpointing, by contrast, operates entirely
+at the \emph{task} granularity: it records whether a task, treated as an
+opaque unit, completed successfully, and whether its output directory still
+exists. This is a coarser, but considerably more general, form of
+checkpointing --- it requires no cooperation from the external program being
+wrapped, applies uniformly to a shell command, a Slurm job, a Docker
+container, or an LLM completion alike, and composes naturally with the
+granularity choices a workflow author makes when decomposing a pipeline
+into tasks (\Cref{sec:task-granularity}).
+
+This coarseness has a direct, quantifiable consequence for how a workflow
+should be decomposed if checkpoint-driven resumability is a priority for a
+given pipeline: the \emph{finer} the task granularity, the more checkpoint
+boundaries exist, and the less recomputation a resumed run must perform
+after a failure. A single, coarse-grained task that internally runs an
+entire multi-hour simulation chain provides exactly one checkpoint boundary
+--- success or failure of the whole chain --- whereas the same chain
+decomposed into five sequential tasks, each individually checkpointed,
+allows a resumed run to skip however many of the five had already
+succeeded before the failure occurred. This is a second, independent
+argument --- alongside the traceability argument already given in
+\Cref{sec:task-granularity} --- for preferring finer-grained task
+decomposition in workflows expected to run long enough that mid-run failure
+is a realistic possibility.
+
+\section{Staging Cost as a Function of Data Volume}
+
+\Cref{ch:lessons-05-07}'s discussion of \texttt{COPY} versus \texttt{LINK}
+staging modes can be made more quantitative by considering explicitly how
+each mode's cost scales with the size of the data product being staged.
+
+\texttt{COPY}'s cost --- in both wall-clock time and storage --- scales
+linearly with file size: copying a ten-gigabyte NetCDF restart file takes
+meaningfully longer, and consumes meaningfully more disk space, than copying
+a ten-kilobyte CSV summary. \texttt{LINK}'s cost, by contrast, is
+essentially constant regardless of the referenced file's size, since a
+symbolic link is a small filesystem object containing only a path string,
+independent of the size of the file it points to. For the small,
+text-oriented examples used throughout Lessons~1--7 of this book, this
+distinction is invisible --- a kilobyte-scale CSV copies essentially
+instantly either way --- but it becomes the dominant practical
+consideration the moment a workflow scales to the gigabyte-scale data
+products characteristic of the environmental modeling case study of
+\Cref{ch:case-study}: a multi-stage WRF pipeline that copies, rather than
+links, every intermediate NetCDF file between \texttt{geogrid},
+\texttt{ungrib}, \texttt{metgrid}, and \texttt{real} could plausibly spend
+a non-trivial fraction of total wall-clock time on staging alone, an
+overhead \texttt{LINK} would largely eliminate at the cost of the
+archival self-containment \Cref{ch:lessons-05-07} already discussed.
+
+\begin{exercise}
+For the three-stage \texttt{download} $\to$ \texttt{preprocess} $\to$
+\texttt{simulate} checkpoint example discussed earlier in this chapter,
+sketch (in prose, no code required) how the choice between \texttt{COPY} and
+\texttt{LINK} for the \texttt{download}~$\to$~\texttt{preprocess} edge would
+interact with checkpoint reuse after a \texttt{simulate} failure, under the
+assumption that \texttt{download}'s output is a forty-gigabyte
+satellite-observation file. Which staging mode would you recommend for this
+specific edge, and why?
+\end{exercise}
+
+\section{Chapter Summary}
+
+Part~I closes with the three mechanisms that make DAGonStar workflows robust
+in practice, not merely correct on paper: \texttt{Validate\_WF()} rejects
+structurally invalid (cyclic) graphs before execution, using a classical,
+linear-time graph algorithm that imposes essentially no practical
+performance cost; checkpoint files allow expensive workflows to resume past
+completed work, with explicitly documented limits on what ``completed''
+guarantees, situated here within the broader, decades-old tradition of
+fault-tolerant checkpointing in high-performance computing; and the
+\texttt{DataMover} abstraction lets a workflow author trade storage/I-O cost
+against archival self-containment, per dependency edge if needed, a
+trade-off whose practical weight scales directly with the size of the
+scientific data products involved. Part~II now extends this same
+dependency, staging, and lifecycle infrastructure across containers, remote
+HPC schedulers, meta-workflows, and --- centrally for this book's stated
+subject --- AI and web services.

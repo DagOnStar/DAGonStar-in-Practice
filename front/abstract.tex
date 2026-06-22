@@ -1,0 +1,38 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+This textbook presents \emph{DAGonStar} (Direct Acyclic Graph On anything, also
+written \emph{DAGon*}), a lightweight Python workflow engine designed to
+orchestrate computational tasks across local machines, on-premise
+high-performance computing (HPC) clusters, containers, cloud-based virtual
+infrastructures, and, in its current evolution, artificial-intelligence (AI)
+and web services. The material is organized as a self-contained academic
+treatment of workflow-based computational science, structured around the same
+progressive narrative used by the project's own fourteen-lesson tutorial
+sequence, and grounded exclusively in the documentation and source examples
+found in the \texttt{docs/} directory of the
+\texttt{DagOnStar/dagonstar} repository
+(\texttt{development-native-web} branch).
+
+The book is organized in three parts. Part~I establishes the theoretical
+foundations of scientific workflow orchestration --- directed acyclic graphs,
+task- and data-oriented dependency models, the \texttt{workflow://} schema,
+configuration management, and the operational mechanics of scratch
+directories, generated launchers, cycle detection, checkpointing, and data
+staging. Part~II extends the model to heterogeneous execution backends:
+containers, remote and Slurm-scheduled HPC execution, meta-workflows,
+asynchronous orchestration, and --- distinctively --- first-class
+\emph{AI--HPC} integration through Large Language Model (LLM) tasks, Web
+tasks, and Native Python tasks. Part~III applies the accumulated theory to
+computational environmental science, using the project's WRF/ROMS/WaComM++-inspired
+environmental application as an extended case study, and closes with a
+synthesis chapter on operational, reproducible, AI-augmented forecasting
+chains. A set of appendices collects the complete API reference, developer
+practices, configuration reference, and checkpoint semantics for use as a
+standing reference after the narrative chapters have been read.
+
+Every code listing, configuration fragment, and lesson narrative reproduced in
+this book is drawn directly from the DAGonStar documentation and tutorial
+sources; the book adds pedagogical structure, formal definitions, discussion,
+and original explanatory figures, while remaining descriptive of, and
+consistent with, the current implementation.

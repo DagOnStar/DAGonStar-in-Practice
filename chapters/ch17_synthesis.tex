@@ -1,0 +1,256 @@
+\chapter{Toward Operational AI--HPC Forecasting Chains}
+\label{ch:synthesis}
+
+This closing chapter does not introduce new DAGonStar mechanisms; it
+assembles the mechanisms developed across Parts~I--III into a single,
+coherent architectural picture, and uses that picture to revisit, explicitly,
+the workshop abstract that motivates this book: \emph{``orchestrating AI-HPC
+workflows for computational environmental science.''}
+
+\section{The Argument of the Book, Restated}
+
+Three claims have been developed, in order, across the preceding sixteen
+chapters:
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{A workflow is a DAG of tasks, expressed either explicitly or
+    inferred from data references} (\Cref{ch:introduction,ch:schema}). This
+    single abstraction --- realized mechanically by the architecture of
+    \Cref{ch:architecture} and exercised incrementally through
+    Lessons~1--7 (\Cref{ch:lessons-01-02,ch:lessons-03-04,ch:lessons-05-07})
+    --- already delivers reproducibility, traceability, portability,
+    parallelism, and recoverability for purely local, purely numerical
+    pipelines.
+  \item \textbf{Heterogeneous execution environments share this same
+    dependency model.} Containers, remote SSH hosts, and HPC schedulers
+    (\Cref{ch:backends}) plug into the identical \texttt{Task}/\texttt{Stager}
+    infrastructure; meta-workflows and asynchronous launch
+    (\Cref{ch:meta-async}) compose and operationalize multiple such DAGs
+    without altering that infrastructure.
+  \item \textbf{AI and web services are first-class DAG nodes, not external
+    add-ons.} \texttt{LLM}, \texttt{WEB}, and \texttt{NATIVE} tasks
+    (\Cref{ch:llm-tasks,ch:web-tasks,ch:native-tasks}) consume and produce
+    \texttt{workflow://}-addressed files with exactly the same dependency,
+    staging, and provenance discipline as a Slurm-submitted numerical model.
+\end{enumerate}
+
+The environmental application case study (\Cref{ch:case-study}) is the point
+at which all three claims operate simultaneously on a single, realistic
+pipeline.
+
+\section{Anatomy of an Operational, AI-Augmented Forecasting Chain}
+
+\Cref{fig:full-chain} synthesizes the book's running examples into the shape
+of a complete operational chain: observation ingestion, numerical modeling,
+post-processing, AI-assisted interpretation, and publication, each stage
+realized by the task type best suited to it, all connected by
+\texttt{workflow://} references, and the whole chain launched
+asynchronously so that a controlling service remains responsive while it
+runs.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=9mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=23mm, minimum height=12mm, font=\sffamily\scriptsize, align=center},
+  ai/.style={rectangle, rounded corners, draw=dagonaccent, very thick,
+    fill=teal!8, minimum width=23mm, minimum height=12mm, font=\sffamily\scriptsize, align=center},
+  arr/.style={-{Stealth[length=2.2mm]}, thick, dagonblue}
+]
+  \node[task] (obs)  {download\_obs\\ \footnotesize \texttt{BATCH}/\texttt{WEB}};
+  \node[task, right=14mm of obs] (prep) {prepare\_forcing\\ \footnotesize \texttt{BATCH}};
+  \node[task, right=14mm of prep] (sim)  {run\_model\\ \footnotesize \texttt{SLURM}};
+  \node[task, right=14mm of sim] (post) {postprocess\\ \footnotesize \texttt{NATIVE}};
+  \node[ai, right=14mm of post] (llm)  {summarize\\ \footnotesize \texttt{LLM}};
+  \node[ai, right=14mm of llm] (pub)  {publish\\ \footnotesize \texttt{WEB}};
+
+  \draw[arr] (obs) -- (prep);
+  \draw[arr] (prep) -- (sim);
+  \draw[arr] (sim) -- (post);
+  \draw[arr] (post) -- (llm);
+  \draw[arr] (post) -- node[below,font=\sffamily\scriptsize,yshift=-2mm]{\texttt{workflow:///postprocess/...}} (pub);
+  \draw[arr] (llm) -- (pub);
+
+  \node[font=\sffamily\footnotesize, below=16mm of sim, text width=120mm, align=center]
+  {Launched with \texttt{workflow.launch()} / \texttt{wait()}
+   (\Cref{ch:meta-async}); \texttt{on\_workflow\_end} triggers downstream
+   notification once \texttt{publish} completes.};
+\end{tikzpicture}
+\caption{A complete, AI-augmented operational forecasting chain, synthesizing
+every task type covered in this book: data ingestion, simulation,
+post-processing, AI-assisted summarization, and publication, all connected
+through \texttt{workflow://} and launched asynchronously.}
+\label{fig:full-chain}
+\end{figure}
+
+\section{Why This Architecture Suits Computational Environmental Science}
+
+Three properties of computational environmental science specifically
+motivate the DAGonStar design choices recapitulated above:
+
+\begin{description}[leftmargin=2em, style=nextline]
+  \item[Heterogeneity is intrinsic, not incidental.] A real forecasting
+    chain genuinely spans local preprocessing, HPC-scheduled simulation,
+    containerized rendering tools, and --- increasingly --- AI services for
+    summarization, anomaly detection, or decision support. A workflow engine
+    that privileged only one of these environments would force the
+    scientist to script the boundary between environments by hand, exactly
+    the implicit, unauditable practice \Cref{ch:introduction} opened by
+    rejecting.
+  \item[File-based exchange is the scientific software lingua franca.] NetCDF,
+    GRIB, CSV, and shapefiles already mediate between WRF, ROMS, and
+    WaComM++-class models (\Cref{ch:case-study}); the
+    \texttt{workflow://} schema (\Cref{ch:schema}) requires no new exchange
+    format, only a uniform way to \emph{name} a file produced by another
+    stage.
+  \item[Operational cadence demands recoverability and non-blocking control.]
+    A daily or sub-daily forecast cycle, of the kind documented for the
+    MytilEx and ADMIRE deployments (\Cref{ch:case-study}), cannot afford to
+    recompute an entire chain after a transient failure in one stage, nor
+    can its controlling service block while the chain executes. Checkpointing
+    (\Cref{ch:lessons-05-07}, Appendix~D) and asynchronous launch
+    (\Cref{ch:meta-async}) directly address these two operational
+    constraints.
+\end{description}
+
+\section{A Methodological Checklist for New AI--HPC Workflows}
+
+Synthesizing the scientific-practice notes distributed across every
+preceding chapter into a single checklist:
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item Decompose the pipeline into named stages following the
+    prepare/run/validate/postprocess/publish pattern
+    (\Cref{ch:external-software}).
+  \item Choose, per stage, the narrowest task type that matches its
+    operational need (\Cref{tab:backend-selection,tab:ai-hpc-triad}):
+    \texttt{BATCH} for small utilities, \texttt{SLURM} for compiled HPC
+    models, \texttt{DOCKER} for dependency-heavy tools, \texttt{NATIVE} for
+    in-process Python computation, \texttt{LLM} for AI-assisted
+    interpretation, \texttt{WEB} for publication and external APIs.
+  \item Prefer \texttt{workflow://} data dependencies over explicit ones
+    whenever a real file product is exchanged (\Cref{sec:task-vs-data}); use
+    explicit \texttt{add\_dependency\_to()} only for genuinely procedural
+    ordering.
+  \item Verify each stage in isolation before composing the full DAG,
+    following the local-structural-verification pattern
+    (\Cref{ch:backends,ch:case-study}).
+  \item Configure secrets exclusively through environment-variable
+    indirection --- \texttt{api\_key\_env} for LLM providers,
+    \texttt{token\_env}/\texttt{username\_env}/\texttt{password\_env} for
+    Web tasks --- and never commit literal credentials
+    (\Cref{ch:configuration,ch:llm-tasks,ch:web-tasks}).
+  \item Enable checkpointing with stable workflow and task names for any
+    stage expensive enough to warrant resumability (\Cref{ch:lessons-05-07}).
+  \item Launch operational chains asynchronously and react to lifecycle
+    events rather than polling (\Cref{ch:meta-async}).
+  \item Record, alongside the workflow source, the configuration values,
+    container image digests, model/provider names, and software versions
+    that affect scientific reproducibility (\Cref{ch:configuration}).
+\end{enumerate}
+
+\section{Revisiting the Book's Three Claims Against Their Documented Limits}
+
+Academic honesty requires that a synthesis chapter not merely restate its
+argument's strongest form, but also revisit, explicitly, the documented
+limitations that qualify it --- several of which this book has reproduced,
+without softening, at the point each was originally relevant. It is worth
+gathering them here, in one place, alongside the three claims they qualify,
+so that the picture \Cref{fig:full-chain} presents is read with appropriate
+calibration rather than as an unqualified endorsement.
+
+The first claim --- that a workflow is a DAG of tasks, with dependencies
+explicit or inferred --- is qualified by the documented constraints of
+\Cref{sec:known-constraints}: some command strings are still assembled by
+concatenation, with shell-quoting hardening an ongoing, not yet complete,
+priority; and the project's own test coverage, while including checkpoint
+reuse, staging, and command-failure propagation, is explicitly described as
+a starting point rather than a complete quality gate.
+
+The second claim --- that heterogeneous execution environments share one
+dependency model --- is qualified by the meta-workflow caveats of
+\Cref{ch:meta-async}: the \texttt{DAG\_TPS} cross-workflow composition
+mechanism central to \Cref{fig:full-chain}'s natural extension to
+observation-ingestion and model-execution as separate workflows is
+explicitly flagged as legacy-sensitive and less thoroughly tested than
+single-workflow execution, and production use is recommended only after
+workflow-specific verification.
+
+The third claim --- that AI and web services are first-class DAG nodes ---
+is qualified most directly by \Cref{ch:llm-tasks}'s epistemic-status
+discussion: the engine provides no mechanism for assessing the factual
+reliability of an LLM provider's output, and the full-response-retention
+design exists precisely because that assessment remains, irreducibly, a
+human responsibility.
+
+\begin{cautionbox}
+None of these qualifications undermines the book's central architectural
+argument; each is a documented, specific limitation of the current
+implementation or of a particular task type's epistemic guarantees, not a
+flaw in the underlying design principle of uniform, DAG-structured task
+composition. Presenting the argument without these qualifications, however,
+would constitute exactly the kind of selectively favorable account
+\Cref{ch:architecture}'s discussion of architectural honesty
+(\Cref{sec:known-constraints}) explicitly argued against.
+\end{cautionbox}
+
+\section{What Generalizes Beyond DAGonStar Specifically}
+
+A final, deliberately broader question is worth addressing before this
+book's closing remarks: which of the methodological lessons developed
+across seventeen chapters are specific to DAGonStar's particular
+implementation choices, and which would transfer to a reader evaluating, or
+even designing, a different workflow orchestration system entirely?
+
+The following generalize, in this book's assessment, well beyond any single
+engine's implementation: the topological-ordering argument for why
+acyclicity is the precise precondition for any valid schedule
+(\Cref{sec:topological-ordering}); the task-granularity trade-off between
+traceability/recoverability and staging/management overhead
+(\Cref{sec:task-granularity}); the defensive-scripting discipline for
+wrapping external scientific software reliably
+(\Cref{ch:external-software}); the distinction between location-transparent,
+embedded-reference dependency expression and configuration-file or
+timestamp-based alternatives (\Cref{sec:schema-formal}); and the
+epistemic-status discussion of embedding AI inference inside a scientific
+pipeline (\Cref{ch:llm-tasks}), which applies to any workflow engine's
+AI-integration feature, present or future, not only to DAGonStar's specific
+\texttt{TaskType.LLM}.
+
+The following are comparatively more specific to DAGonStar's particular
+implementation choices, and a reader evaluating an alternative engine should
+expect analogous but not identical mechanisms: the precise
+\texttt{workflow://} URI grammar (\Cref{ch:schema}), though the underlying
+naming-scheme concept it implements is general; the thread-based, rather
+than process-based, task-isolation model (\Cref{sec:threads-not-processes}),
+which is a specific engineering trade-off other engines have resolved
+differently; and the specific factory-pattern dispatch mechanics of
+\texttt{DagonTask} (\Cref{sec:factory-pattern-depth}), though the general
+principle of a uniform authoring surface over heterogeneous backends is, again,
+broadly transferable.
+
+\begin{practicebox}
+A reader who has worked through this book primarily to evaluate DAGonStar
+for a specific research project, rather than to learn it for its own sake,
+may find this distinction directly useful: the generalizable lessons above
+are worth retaining regardless of which engine is ultimately adopted, while
+the DAGonStar-specific mechanics are worth treating as one well-documented,
+thoroughly worked example of how those general lessons can be realized in a
+concrete, lightweight, Python-native implementation.
+\end{practicebox}
+
+\section{Closing Remarks}
+
+DAGonStar's central methodological contribution, as this book has aimed to
+demonstrate, is not any single execution backend but the \emph{uniformity}
+with which it treats them: a shell command, an \texttt{sbatch} submission, a
+Docker container, an HTTP request, an LLM completion, and a native Python
+function call are, from the standpoint of the dependency graph, the staging
+mechanism, and the checkpoint system, the same kind of thing --- a task with
+inputs, an execution, and outputs, situated inside a DAG that can be
+inspected, validated, resumed, and audited. For computational environmental
+science, where a single forecast cycle may genuinely require all of these
+execution environments in sequence, this uniformity is precisely what turns
+a collection of separately maintained scripts into a single, reproducible,
+operational, AI-augmented scientific workflow.

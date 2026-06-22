@@ -1,0 +1,342 @@
+\chapter{Web Service Tasks}
+\label{ch:web-tasks}
+
+\section{Design Goals}
+
+\texttt{TaskType.WEB} accepts a JSON-serializable HTTP/HTTPS request
+specification \emph{rather than a shell command}. The workflow driver writes
+that specification under \texttt{.dagon/}, stages any referenced files below
+\texttt{inputs/}, and invokes the web runner inside the task directory.
+Consequently, the HTTP request occurs \emph{where the task executes}: a
+\texttt{Slurm}-scheduled web task (\texttt{executor="slurm"}) issues its
+request from the compute node, not from the controlling process, without
+changing the dataflow model in any way.
+
+\begin{practicebox}
+The lesson's stated objective captures the design intent precisely: a web
+request is a first-class DAGonStar task --- its dependency is inferred from
+\texttt{workflow://}, its input is staged into a private scratch directory,
+and its response is a declared workflow output, exactly like any other task
+type covered in this book.
+\end{practicebox}
+
+\begin{lessonbox}{Lesson 13 --- Execute a Web Task Locally}
+\textbf{Objective.} Construct a reproducible workflow in which a local HTTP
+service receives a file produced by an upstream task.
+
+\textbf{Maintained source.} \texttt{examples/tutorial/lesson\_13\_web\_tasks.py}.
+\begin{lstlisting}[style=bash]
+python3 examples/tutorial/lesson_13_web_tasks.py
+\end{lstlisting}
+It starts a local server bound only to \texttt{127.0.0.1}; no network
+service, account, or credential is required.
+
+\textbf{Code} (standalone, copy-pasteable version):
+\begin{lstlisting}
+import json
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+class EchoHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers["Content-Length"]))
+        reply = json.dumps({"received": "sample" in body.decode("utf-8")}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(reply)))
+        self.end_headers()
+        self.wfile.write(reply)
+
+    def log_message(self, _format, *_args):
+        pass
+
+
+def config(scratch):
+    return {
+        "batch": {"scratch_dir_base": scratch, "run_base": "", "threads": "1"},
+        "dagon_service": {"use": "False", "route": "http://localhost:57000"},
+        "ftp_pub": {"ip": "localhost"},
+        "slurm": {"partition": ""},
+    }
+
+
+def main():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), EchoHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with tempfile.TemporaryDirectory(prefix="dagon-web-lesson-") as scratch:
+            workflow = Workflow("Lesson13", config=config(scratch))
+            prepare = DagonTask(
+                TaskType.BATCH, "prepare", "mkdir -p output; printf sample > output/data.txt"
+            )
+            upload = DagonTask(
+                TaskType.WEB,
+                "upload",
+                {
+                    "method": "POST",
+                    "url": "http://127.0.0.1:%s/upload" % server.server_port,
+                    "multipart": {
+                        "dataset": {
+                            "file": "workflow:///prepare/output/data.txt",
+                            "content_type": "text/plain",
+                        }
+                    },
+                    "expected_status": 200,
+                    "outputs": {"body": "reply.json", "metadata": "request.json"},
+                },
+            )
+            consume = DagonTask(
+                TaskType.BATCH, "consume", "cat workflow:///upload/outputs/reply.json"
+            )
+            for task in (prepare, upload, consume):
+                workflow.add_task(task)
+            workflow.run()
+            print(Path(upload.working_dir, "outputs", "reply.json").read_text())
+            print(Path(upload.working_dir, ".dagon", "web_result.json").read_text())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+\textbf{Scientific practice note.} A web request is, in this model, exactly
+as auditable as a shell command: its specification, staged inputs, and
+declared outputs all live inside the task's scratch directory, alongside the
+launcher-based provenance developed in \Cref{ch:lessons-03-04}.
+\end{lessonbox}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=20mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=30mm, minimum height=11mm, font=\sffamily\small, align=center},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (prep) {prepare\\ \footnotesize \texttt{output/data.txt}};
+  \node[task, right=26mm of prep] (upl) {upload\\ \footnotesize \texttt{TaskType.WEB} (multipart POST)};
+  \node[task, right=26mm of upl] (con) {consume\\ \footnotesize reads \texttt{outputs/reply.json}};
+  \draw[arr] (prep) -- node[above,font=\sffamily\scriptsize]{\texttt{workflow:///prepare/...}} (upl);
+  \draw[arr] (upl) -- node[above,font=\sffamily\scriptsize]{\texttt{workflow:///upload/outputs/...}} (con);
+\end{tikzpicture}
+\caption{The three-task Web-task pipeline of Lesson~13: a file producer, an
+HTTP upload step whose multipart payload is a staged \texttt{workflow://}
+reference, and a consumer of the declared HTTP response output.}
+\label{fig:web-task-flow}
+\end{figure}
+
+\section{Interpretation and Inspection}
+
+The multipart wrapper
+
+\begin{lstlisting}
+"multipart": {
+    "dataset": {
+        "file": "workflow:///prepare/output/data.txt",
+        "content_type": "text/plain",
+    }
+}
+\end{lstlisting}
+
+explicitly distinguishes a file upload from an ordinary string field.
+DAGonStar creates the \texttt{prepare} $\to$ \texttt{upload} dependency from
+the reference and copies the file into
+\texttt{upload/inputs/Lesson13/prepare/output/data.txt}, mirroring exactly
+the staging behavior already established for shell-command tasks
+(\Cref{ch:schema}). The response body is written to
+\texttt{upload/outputs/reply.json}; response metadata --- including status
+code, elapsed time, content hash, and a \emph{non-secret} authentication
+description --- is written to \texttt{.dagon/web\_result.json} and to the
+declared \texttt{outputs/request.json}.
+
+\section{Authentication}
+
+For authenticated endpoints, the specification uses environment-variable
+\emph{names}, never literal secrets:
+
+\begin{lstlisting}
+{"type": "bearer", "token_env": "SERVICE_TOKEN"}
+\end{lstlisting}
+
+Basic and API-key authentication modes follow the same principle (see
+\texttt{username\_env}, \texttt{password\_env}, \texttt{value\_env} in
+\Cref{ch:configuration}).
+
+\begin{cautionbox}
+Never place secret values in a workflow, a generated request file, a task
+output, or a tutorial. The environment-variable indirection is not optional
+boilerplate; it is the load-bearing mechanism that keeps credentials out of
+version-controlled workflow definitions and out of checkpoint or
+serialization JSON.
+\end{cautionbox}
+
+\section{Specification Surface}
+
+Beyond \texttt{multipart}, the full \texttt{WebTask} specification supports
+\texttt{query}, \texttt{headers}, \texttt{json}, \texttt{data}, \texttt{auth},
+\texttt{timeout}, retry settings, \texttt{expected\_status} codes, and
+\texttt{outputs}. Recursive \texttt{workflow://} values anywhere in the
+specification infer dependencies; referenced files are copied below
+\texttt{inputs/}. Body, headers, and metadata outputs are written to safe
+relative paths below \texttt{outputs/}. \texttt{executor="slurm"} accepts
+the same scheduler options, in \texttt{resources}, used by Slurm batch tasks
+(\Cref{ch:backends}) --- allowing a web request to be issued from a
+scheduled compute node, for instance to publish a forecast product from the
+same node that produced it.
+
+\section{Verification}
+
+\begin{lstlisting}[style=bash]
+python3 -m unittest tests.test_web -v
+\end{lstlisting}
+
+\section{Scientific Application: Web Tasks as a Publication Stage}
+
+In the operational forecasting-chain pattern developed fully in
+\Cref{ch:case-study}, the Web task type is most naturally the
+\emph{publication} stage of a pipeline: a model's post-processed product is
+uploaded to a dissemination API, a dashboard, or a data catalog as the final
+DAG node, with the same dependency-graph guarantees --- it cannot run before
+post-processing completes, and its outcome is recorded as an ordinary,
+inspectable task output --- as every preceding stage.
+
+\section{Idempotency and the Risks of Retrying a Web Task}
+
+A subtlety that the mechanical treatment of Lesson~13 does not surface, but
+that any researcher moving beyond the tutorial's local echo-server example
+must reason about explicitly, concerns \emph{idempotency} --- whether
+repeating a request has the same effect as issuing it once.
+
+An HTTP \texttt{GET} request is, by the protocol's own design convention,
+expected to be idempotent and free of side effects: issuing it twice should
+leave the world in the same state as issuing it once, which makes automatic
+retry behavior (referenced among the specification surface in
+\Cref{ch:web-tasks} as ``retry settings'') generally safe to enable. An
+HTTP \texttt{POST} request, by contrast, frequently \emph{is not}
+idempotent: a publication endpoint that appends a new forecast record to a
+database, or a notification endpoint that sends an email, may have a
+materially different effect if invoked twice than if invoked once,
+regardless of whether the second invocation was a deliberate workflow
+rerun or an automatic retry triggered by a transient network failure.
+
+\begin{cautionbox}
+A workflow author configuring a \texttt{WEB} task's retry behavior for a
+non-idempotent endpoint --- the publication stage of the forecasting-chain
+pattern developed in \Cref{ch:synthesis} being the clearest example in this
+book --- should verify, against the target service's own documentation,
+whether the endpoint itself provides idempotency guarantees (for instance,
+via a client-supplied idempotency key included in the request body or
+headers) before relying on the engine's retry mechanism. Where no such
+guarantee exists, automatic retries risk silently duplicating a published
+scientific product, an error considerably harder to detect after the fact
+than an outright request failure would be.
+\end{cautionbox}
+
+\section{Comparing Web Tasks and LLM Tasks as Sibling Mechanisms}
+
+Having now examined both \texttt{TaskType.LLM} (\Cref{ch:llm-tasks}) and
+\texttt{TaskType.WEB} in full, it is worth making explicit the structural
+relationship between them, since a first reading might reasonably ask why
+two separate task types exist at all, given that an LLM completion request
+is, after all, simply a particular kind of HTTP \texttt{POST}.
+
+The answer is that \texttt{TaskType.LLM} can be understood as a
+\emph{specialization} of the general HTTP-request capability
+\texttt{TaskType.WEB} provides, pre-configured with the specific
+conventions --- the \texttt{/chat/completions} path convention, the
+\texttt{messages}-based JSON body shape, the \texttt{\{parameter\}} prompt-
+templating mechanism, and the \texttt{provider}-section-based credential
+lookup of \Cref{sec:config-llm} --- that make authoring an AI-completion
+task substantially more convenient than assembling the equivalent raw
+\texttt{WEB} task specification by hand would be. \Cref{tab:ai-hpc-triad} in
+\Cref{ch:native-tasks} will complete this comparison with the third sibling,
+\texttt{TaskType.NATIVE}; the present comparison can already be made
+concrete:
+
+\begin{table}[h]
+\centering
+\caption{\texttt{LLM} as a convenience specialization of \texttt{WEB}.}
+\begin{tabular}{@{}p{0.3\linewidth}p{0.32\linewidth}p{0.3\linewidth}@{}}
+\toprule
+\textbf{Aspect} & \textbf{\texttt{TaskType.WEB}} & \textbf{\texttt{TaskType.LLM}} \\
+\midrule
+Request shape & Fully general (\texttt{method}, \texttt{url}, \texttt{headers}, \texttt{json}, \texttt{multipart}, \dots) & Fixed to a Chat Completions JSON body with \texttt{messages} \\
+Endpoint configuration & Literal \texttt{url} per task & Resolved from \texttt{[llm.<provider>]} section \\
+Templating & None built in; values must be assembled by the caller & \texttt{\{parameter\}} substitution from \texttt{params}/\texttt{input\_files} \\
+Typical role & Publication, ingestion, arbitrary third-party APIs & AI-assisted interpretation, summarization \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{practicebox}
+A useful diagnostic question for a workflow author unsure which task type to
+reach for: if the target endpoint is an OpenAI-compatible Chat Completions
+API, \texttt{TaskType.LLM}'s built-in conventions remove enough boilerplate
+to be worth using even though the underlying mechanism --- an HTTP request
+with a JSON body --- is the same one \texttt{TaskType.WEB} would also
+support; for every other HTTP/HTTPS service, \texttt{TaskType.WEB}'s full
+generality is the correct, and only, choice.
+\end{practicebox}
+
+\section{Designing a Robust Publication Specification}
+
+Building on \Cref{ch:web-tasks}'s observation that Web tasks are naturally
+suited to the publication stage of a forecasting chain, it is worth working
+through, in more depth than the tutorial's locally verifiable example
+requires, what a production-quality publication task specification should
+additionally account for.
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{Explicit \texttt{expected\_status} checking.} As shown in
+    Lesson~13's specification (\texttt{"expected\_status": 200}), a
+    publication task should never treat an HTTP-level success (a response
+    received at all) as equivalent to an application-level success (the
+    endpoint accepted and processed the published product); checking the
+    expected status code is the mechanism that distinguishes the two.
+  \item \textbf{Bounded \texttt{timeout}.} Publication endpoints, like LLM
+    providers (\Cref{ch:llm-tasks}), may become slow or unresponsive under
+    load; an unbounded wait on a stalled publication step blocks the
+    \texttt{publish} task and, transitively, anything downstream of it,
+    indefinitely.
+  \item \textbf{Declared \texttt{outputs} sufficient for audit.} Retaining
+    both \texttt{body} and \texttt{metadata} outputs, as Lesson~13 does,
+    ensures that a later audit of a published product can confirm not only
+    \emph{what} was published but \emph{when} and with what response the
+    publishing endpoint acknowledged it.
+  \item \textbf{Authentication via environment-variable indirection.} As
+    \Cref{ch:configuration} emphasized, and as this chapter's own
+    discussion of multipart uploads illustrated, no literal credential
+    should ever appear in the specification itself.
+\end{enumerate}
+
+\section{Chapter Summary}
+
+\texttt{TaskType.WEB} generalizes file-based scientific software integration
+(\Cref{ch:external-software}) to network services: any HTTP/HTTPS endpoint
+becomes a DAG node whose inputs are staged via \texttt{workflow://} and whose
+outputs are ordinary, dependency-trackable files. This chapter additionally
+examined the idempotency risks of automatic retries against non-idempotent
+publication endpoints, situated \texttt{TaskType.LLM} explicitly as a
+convenience specialization of the more general \texttt{TaskType.WEB}
+mechanism, and worked through a four-point checklist for designing a
+production-quality publication task specification. \Cref{ch:native-tasks}
+completes the AI--HPC integration triad by bringing native, importable
+Python functions into the same model.
+
+\begin{exercise}
+Using the four-point checklist above, critique the minimal Lesson~13
+specification reproduced earlier in this chapter, identifying which of the
+four points it already satisfies and which would need strengthening before
+the same specification could be safely used against a real, non-idempotent,
+internet-facing publication endpoint rather than the tutorial's local echo
+server.
+\end{exercise}

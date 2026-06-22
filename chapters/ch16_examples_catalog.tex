@@ -1,0 +1,230 @@
+\chapter{The Examples Catalog and Verification Strategy}
+\label{ch:examples-catalog}
+
+The repository documents its runnable and research-oriented examples
+(\texttt{examples/}) as a guided catalog rather than a replacement for the
+source files themselves: each page explains scientific/computational
+purpose, the DAGonStar mechanisms exercised, prerequisites, execution model,
+and expected verification strategy. This chapter surveys that catalog as a
+reference map for readers extending this book's lessons toward their own
+research problems.
+
+\section{Example Families}
+
+\begin{center}
+\begin{tabular}{@{}p{0.30\linewidth}p{0.62\linewidth}@{}}
+\toprule
+\textbf{Family} & \textbf{Scope} \\
+\midrule
+Taskflow examples & Explicit dependency graphs (cf.\ Lesson~2,
+  \Cref{ch:lessons-01-02}). \\
+Asynchronous launch & Local background execution and lifecycle callbacks;
+  source: \texttt{examples/async/asynchronous\_launch.py}
+  (\Cref{ch:meta-async}). \\
+Batch dataflow examples & Local and remote dataflow, checkpointing, and
+  \texttt{workflow://} file references (\Cref{ch:lessons-03-04,ch:lessons-05-07}). \\
+Docker dataflow examples & Container-backed tasks (\Cref{ch:backends}). \\
+Slurm dataflow examples & HPC scheduler-backed tasks (\Cref{ch:backends}). \\
+Cloud dataflow examples & Apache Libcloud-backed virtual-machine tasks. \\
+Globus dataflow example & Endpoint-based scientific data movement. \\
+Transversal and meta-workflow examples & Cross-workflow dependencies and
+  legacy transversal scripts (\Cref{ch:meta-async}). \\
+HiPES tutorial examples & A staged scientific tutorial from configuration to
+  map rendering. \\
+Environmental application examples & WRF/ROMS/WaComM++-oriented
+  demonstration material (\Cref{ch:case-study}). \\
+LLM task example & A local OpenAI-compatible mock and a real-provider
+  skeleton (\Cref{ch:llm-tasks}). \\
+Native Python task example & Staged files, scalar parameters, and declared
+  outputs (\Cref{ch:native-tasks}). \\
+Web task example & Local HTTP execution, staged uploads, and response
+  outputs (\Cref{ch:web-tasks}). \\
+Tutorial source programs & Runnable local sources for the advanced LLM and
+  web lessons, under \texttt{examples/tutorial/}. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Recommended Reading and Verification Order}
+
+The documentation suggests beginning with examples that are verifiable on an
+ordinary developer machine, then progressing to examples that require
+site-dependent services:
+
+\paragraph{Stage 1 --- Local, no external service.}
+\begin{enumerate}[leftmargin=1.6em]
+  \item Taskflow (\Cref{ch:lessons-01-02});
+  \item Batch dataflow (\Cref{ch:lessons-03-04});
+  \item Checkpointing (\Cref{ch:lessons-05-07}, Appendix~D);
+  \item Docker, if a Docker daemon is available locally
+    (\Cref{ch:backends}).
+\end{enumerate}
+
+\paragraph{Stage 2 --- Site-dependent.}
+\begin{enumerate}[leftmargin=1.6em]
+  \item Slurm (\Cref{ch:backends});
+  \item Remote batch (\Cref{ch:backends});
+  \item Cloud;
+  \item Globus;
+  \item Environmental application (\Cref{ch:case-study}).
+\end{enumerate}
+
+\begin{practicebox}
+This staged strategy is itself worth adopting as a general engineering
+practice when developing a \emph{new} DAGonStar workflow, not only when
+reading the example catalog: build and verify the local-only skeleton of a
+pipeline first --- using mock services where the LLM and Web lessons already
+demonstrate the pattern (\Cref{ch:llm-tasks,ch:web-tasks}) --- before
+introducing the site-specific services (a real Slurm cluster, a real cloud
+account, a real LLM provider) that the production version will ultimately
+require.
+\end{practicebox}
+
+\section{The Consistency Rule}
+
+The examples directory includes legacy research material alongside actively
+maintained tutorials. The documentation distinguishes four categories
+explicitly, and this book preserves the same distinction:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item locally verifiable examples;
+  \item examples requiring external software;
+  \item examples requiring remote services or site-specific credentials;
+  \item historical scripts retained for reproducibility context.
+\end{itemize}
+
+\begin{cautionbox}
+A reader extending these examples toward production use should explicitly
+re-classify any adapted example into one of these four categories and record
+that classification alongside the adapted workflow --- precisely the kind of
+operational metadata that keeps a scientific pipeline auditable as it
+evolves away from its tutorial origin.
+\end{cautionbox}
+
+\section{The Pedagogical Function of an Examples Catalog}
+
+It is worth situating the examples catalog's organizational philosophy
+within a broader observation about how research software documentation
+tends to fail, and how a catalog of the kind \Cref{ch:examples-catalog}
+surveys is designed specifically to avoid that failure mode.
+
+A common pattern in research software projects is for examples to
+accumulate organically, over years, as individual researchers contribute
+scripts addressing their own immediate needs, with no consistent
+classification of what each example assumes, requires, or guarantees. The
+result, familiar to anyone who has inherited a research codebase, is a
+directory of scripts of wildly varying reliability, with no way to tell,
+short of reading each one in full, which examples will run unmodified on a
+fresh checkout and which silently assume a specific cluster, credential set,
+or dataset the original author had access to but never documented. The
+four-category consistency rule \Cref{ch:examples-catalog} reproduced ---
+locally verifiable; requiring external software; requiring remote
+services or credentials; historical, retained for context --- exists
+precisely to prevent this accumulation from becoming opaque: every example
+is required to declare, explicitly, which category it belongs to, so that a
+reader can decide, before investing time, whether a given example is even
+attemptable in their current environment.
+
+\begin{practicebox}
+This four-category discipline is worth adopting independently of DAGonStar,
+as a general practice for any research group maintaining a shared example or
+script collection: require every contributed example to declare its
+verification category at the point of contribution, rather than leaving
+later readers to discover the category empirically, through failed attempts
+to run code whose external requirements were never documented.
+\end{practicebox}
+
+\section{Mock Services as a Verification Strategy}
+
+The staged verification strategy of \Cref{ch:examples-catalog} --- local
+examples first, site-dependent examples second --- depends critically on a
+technique this book has used repeatedly without naming it explicitly until
+now: the \emph{mock service}. Lessons~12 and~13's locally verifiable LLM and
+Web examples (\Cref{ch:llm-tasks,ch:web-tasks}) both achieve local
+verifiability by substituting a small, purpose-built HTTP server --- bound
+only to \texttt{127.0.0.1}, requiring no credential, implementing only the
+minimal subset of a real provider's protocol surface needed for the
+example --- for the real, external service a production workflow would
+ultimately target.
+
+This technique deserves recognition as a general-purpose strategy, not
+merely an implementation convenience specific to the tutorial. A mock
+service verifies the \emph{mechanism} --- dependency inference, staging,
+request construction, response capture --- entirely independently of the
+\emph{content} a real provider would return, which is exactly the
+separation of concerns a researcher needs when developing or debugging a
+new \texttt{LLM}- or \texttt{WEB}-task-based workflow stage: mechanism bugs
+(a malformed request, a missing dependency, an incorrectly staged file) can
+be found and fixed against the mock, with zero cost and zero external
+dependency, before ever spending a real API quota or risking a real,
+possibly non-idempotent, side effect against a production endpoint.
+
+\begin{example}
+A researcher developing a new \texttt{WEB}-task-based integration with an
+unfamiliar third-party API can profitably begin by writing a mock server
+that returns a fixed, known-good response matching the target API's
+documented response schema, developing and debugging the DAGonStar task
+specification entirely against this mock, and only substituting the real
+endpoint URL --- with no other change to the task specification, by the
+provider-agnostic design principle already discussed in
+\Cref{ch:llm-tasks} --- once the mechanism is confirmed correct. This
+mirrors exactly the relationship between Lesson~12's \texttt{local\_mock}
+provider and Lesson~12's documented path to a real provider
+(\Cref{ch:llm-tasks}, Step~6).
+\end{example}
+
+\section{Reading an Unfamiliar Example Critically}
+
+Building on the recommended reading order of \Cref{ch:examples-catalog}, it
+is worth giving a concrete procedure for how a reader should approach any
+\emph{individual} example in the catalog, beyond simply running it, since
+the goal of reading an example is generally to extract a reusable pattern
+for one's own workflow, not merely to confirm that the example itself
+executes successfully.
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{Identify the verification category first}
+    (\Cref{ch:examples-catalog}), to calibrate what can be assumed about
+    the example's reliability and portability before reading further.
+  \item \textbf{Identify which task types and staging modes the example
+    exercises}, using the vocabulary developed across Parts~I and~II of
+    this book, to situate the example relative to material already covered.
+  \item \textbf{Identify the dependency structure}, ideally by sketching the
+    DAG the example constructs, before reading the task bodies in detail
+    --- the structural skeleton is usually more transferable to a reader's
+    own problem than the specific commands inside any one task.
+  \item \textbf{Identify what the example deliberately omits}, particularly
+    for examples in the ``requiring external software'' or ``requiring
+    remote services'' categories, where production-readiness concerns
+    (\Cref{ch:case-study}'s operational-deployment discussion is directly
+    relevant here) are frequently out of scope by design, for the sake of
+    pedagogical focus.
+\end{enumerate}
+
+\section{Chapter Summary}
+
+The examples catalog is organized around the same staged, local-first
+verification philosophy this book has followed since \Cref{ch:lessons-01-02}:
+prove a mechanism with no external dependency, then extend it toward the
+real service it is meant to integrate with. This chapter additionally
+situated the catalog's four-category consistency rule within a broader
+critique of how research-software examples typically accumulate without
+documentation, named and generalized the mock-service verification
+technique already used implicitly by the LLM and Web task lessons, and gave
+a concrete, four-step procedure for critically reading any unfamiliar
+example in the catalog for transferable patterns rather than merely
+confirming its successful execution. \Cref{ch:synthesis} now closes the
+book by assembling every mechanism surveyed across Parts~I--III into a
+coherent picture of an operational, reproducible, AI-augmented
+forecasting chain.
+
+\begin{exercise}
+Apply the four-step reading procedure of this chapter to the HiPES tutorial
+examples family (\Cref{ch:examples-catalog}'s example-family table), based
+only on its one-line catalog description (``a staged scientific tutorial
+from configuration to map rendering''). What predictions can you make about
+its likely task-type composition and dependency structure before consulting
+the source material directly, and what aspects of the four-step procedure
+necessarily require reading the actual source rather than the catalog
+description alone?
+\end{exercise}

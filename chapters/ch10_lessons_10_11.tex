@@ -1,0 +1,361 @@
+\chapter{Meta-Workflows and Asynchronous Execution}
+\label{ch:meta-async}
+
+\begin{lessonbox}{Lesson 10 --- Compose Meta-Workflows}
+\textbf{Objective.} Coordinate more than one workflow and use transversal
+references.
+
+\textbf{Concept.} \texttt{DAG\_TPS} coordinates a set of workflows. A task in
+one workflow can reference a task in another workflow with
+\texttt{workflow://OtherWorkflow/task/path}.
+
+\textbf{Code} (\texttt{lesson\_10.py}):
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.dag_tps import DAG_TPS
+from dagon.task import DagonTask, TaskType
+
+
+if __name__ == "__main__":
+    observations = Workflow("Observations")
+    model = Workflow("Model")
+
+    collect = DagonTask(
+        TaskType.BATCH,
+        "collect",
+        "mkdir -p out; echo 'forcing' > out/forcing.txt",
+    )
+
+    run_model = DagonTask(
+        TaskType.BATCH,
+        "run_model",
+        "cat workflow://Observations/collect/out/forcing.txt > model_output.txt",
+    )
+
+    observations.add_task(collect)
+    model.add_task(run_model)
+
+    meta = DAG_TPS("Lesson10")
+    meta.add_workflow(observations)
+    meta.add_workflow(model)
+    meta.make_dependencies()
+    meta.run()
+\end{lstlisting}
+
+\textbf{Expected behavior.} The \texttt{model} workflow waits for the
+\texttt{observations} workflow task that produces \texttt{forcing.txt}.
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+DIR=$(find /tmp -maxdepth 1 -type d -name '*-run_model' | tail -n 1)
+sed -n '1,80p' "$DIR/model_output.txt"
+\end{lstlisting}
+
+If this legacy path behaves differently in a given environment, first verify
+construction without execution (\texttt{print(meta.as\_json()["name"])}) and
+then inspect the dependency graph with \texttt{task.prevs} and
+\texttt{task.nexts}.
+
+\textbf{Scientific practice note.} Meta-workflows are useful when a research
+system has separable but connected pipelines, such as observations, model
+execution, validation, and dissemination.
+\end{lessonbox}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=14mm and 10mm,
+  wf/.style={rectangle, draw=dagonaccent, dashed, very thick, rounded corners,
+    inner sep=8pt},
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=26mm, minimum height=10mm, font=\sffamily\small},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (collect) {collect};
+  \begin{scope}[on background layer]
+    \node[wf, fit=(collect), label={[font=\sffamily\bfseries\small]above:Workflow: Observations}] {};
+  \end{scope}
+  \node[task, right=32mm of collect] (run_model) {run\_model};
+  \begin{scope}[on background layer]
+    \node[wf, fit=(run_model), label={[font=\sffamily\bfseries\small]above:Workflow: Model}] {};
+  \end{scope}
+  \draw[arr] (collect) -- node[above,font=\sffamily\scriptsize]{\texttt{workflow://Observations/collect/...}} (run_model);
+  \node[font=\sffamily\small, below=14mm of collect, xshift=32mm] {\texttt{DAG\_TPS("Lesson10")} coordinates both workflows};
+\end{tikzpicture}
+\caption{A meta-workflow (\texttt{DAG\_TPS}) coordinating two independently
+defined \texttt{Workflow} objects, connected by a cross-workflow
+\texttt{workflow://} reference.}
+\label{fig:meta-workflow}
+\end{figure}
+
+\section{Discussion: Why Compose Workflows Rather Than Tasks?}
+
+A natural question is why \texttt{DAG\_TPS} exists at all, given that every
+example so far has placed all tasks inside a single \texttt{Workflow}.
+The answer is organizational, not merely technical: real research systems
+frequently have \emph{separable} pipelines maintained by different people or
+teams --- an observations-ingestion pipeline, a model-execution pipeline, a
+validation pipeline, a dissemination pipeline --- each independently
+versioned and independently runnable, yet occasionally needing to consume
+each other's products. \texttt{DAG\_TPS} lets each pipeline remain a
+self-contained \texttt{Workflow}, while a thin coordinating layer expresses
+the few cross-pipeline data dependencies that connect them.
+
+\begin{cautionbox}
+The documentation is explicit that meta-workflow code is \emph{legacy-sensitive}
+and less covered by automated tests than local single-workflow behavior. For
+production scientific use, verify the exact transversal scenario with
+representative workflows, and preserve the verification command alongside
+the experiment record.
+\end{cautionbox}
+
+\begin{lessonbox}{Lesson 11 --- Launch a Workflow Asynchronously}
+\textbf{Objective.} Start a workflow without blocking the main Python thread,
+observe its lifecycle, and wait for completion only when needed.
+
+\textbf{Concept.} \texttt{Workflow.launch()} runs the same execution path as
+\texttt{run()}, but in a background thread. \texttt{Workflow.wait()} joins
+that thread. Event hooks let an application report task and workflow
+progress without polling task status.
+
+\textbf{Code:}
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+workflow = Workflow("Lesson11")
+workflow.add_task(DagonTask(TaskType.BATCH, "hello", "echo hello"))
+
+workflow.on_task_start += lambda task: print("starting", task.name)
+workflow.on_task_end += lambda task: print("ended", task.name, task.status.name)
+workflow.on_workflow_end += lambda wf: print("workflow complete")
+
+workflow.launch()
+print("The caller is free to do other work.")
+workflow.wait()
+\end{lstlisting}
+
+\textbf{Run:}
+\begin{lstlisting}[style=bash]
+cp dagon.ini.sample dagon.ini
+python3 lesson_11.py
+\end{lstlisting}
+
+\textbf{Expected behavior.} The caller's print statement can execute while
+the workflow is running; \texttt{wait()} then blocks until the task- and
+workflow-end callbacks have run. Dependencies are discovered automatically by
+\texttt{launch()}; calling \texttt{make\_dependencies()} explicitly remains
+useful when the graph should be inspected or validated before launch.
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+python3 examples/async/asynchronous_launch.py
+\end{lstlisting}
+
+\textbf{Scientific practice note.} Asynchronous launch is useful for notebook
+interfaces, web services, and experiment controllers that need to remain
+responsive while workflows run. Event callbacks should report progress or
+update state quickly; expensive work in a callback delays the workflow
+thread.
+\end{lessonbox}
+
+\section{The Workflow Lifecycle Event Model}
+
+\texttt{launch()} returns the background \texttt{threading.Thread}; calling
+\texttt{launch()} while the same workflow is already running raises
+\texttt{RuntimeError}. \texttt{wait(timeout=...)} returns \texttt{True} when
+the workflow completed and \texttt{False} when the timeout expired; calling
+\texttt{wait()} \emph{before} \texttt{launch()} is a documented no-op that
+returns \texttt{True}.
+
+Listeners are registered with \texttt{+=} (or
+\texttt{workflow.add\_listener(event\_name, callback)}) and removed with
+\texttt{-=} (or \texttt{remove\_listener}). Workflow-level callbacks receive
+the workflow object; task-level callbacks receive the task object. Listener
+exceptions are logged and do not stop the workflow --- an important
+robustness property for long-running, unattended operational deployments.
+
+\begin{table}[h]
+\centering
+\caption{Workflow and task lifecycle events.}
+\label{tab:lifecycle-events}
+\begin{tabular}{@{}p{0.40\linewidth}p{0.16\linewidth}p{0.36\linewidth}@{}}
+\toprule
+\textbf{Event} & \textbf{Argument} & \textbf{Fires when} \\
+\midrule
+\texttt{on\_workflow\_start} & workflow & Workflow execution begins. \\
+\texttt{on\_workflow\_end} & workflow & Workflow execution ends. \\
+\texttt{on\_task\_start} & task & A task thread begins. \\
+\texttt{on\_task\_wait} & task & The task enters dependency waiting. \\
+\texttt{on\_task\_staging\_in\_start} & task & Staging-in launcher preparation begins. \\
+\texttt{on\_task\_staging\_in\_end} & task & Staging-in launcher preparation completes. \\
+\texttt{on\_task\_execute\_start} & task & The task begins its executor phase. \\
+\texttt{on\_task\_staging\_out\_start} & task & Post-execution output/reference cleanup begins. \\
+\texttt{on\_task\_staging\_out\_end} & task & Post-execution output/reference cleanup completes. \\
+\texttt{on\_task\_end} & task & A task thread ends, whether finished or failed. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{practicebox}
+DAGonStar currently generates staging-in commands as part of a task
+launcher and has no separate data staging-out \emph{transfer} phase; the
+corresponding hooks accurately delimit the existing preparation and cleanup
+phases rather than implying a transfer step that does not yet exist. Treat
+the table above as a description of current behavior, in keeping with the
+project's documentation-fidelity principle.
+\end{practicebox}
+
+\section{Operational Significance for Forecasting Chains}
+
+Asynchronous launch is the mechanism that allows DAGonStar to sit behind a
+notebook interface, a web service, or an automated experiment controller
+without blocking it --- exactly the operational shape required by the
+recurring forecasting-chain theme of this book (developed fully in
+\Cref{ch:case-study,ch:synthesis}): a controller can \texttt{launch()} a
+daily forecast workflow, remain responsive to status queries or new requests
+while it runs, and react to \texttt{on\_workflow\_end} to trigger
+downstream publication once the chain completes.
+
+\section{Meta-Workflows and the Modularity Argument}
+
+It is worth strengthening, with a software-engineering argument, the
+organizational rationale \Cref{ch:meta-async} already gave for
+\texttt{DAG\_TPS}. Software-engineering practice has long recognized a
+general principle, sometimes called the \emph{single-responsibility
+principle}: a unit of code (here, a \texttt{Workflow}) should have one
+reason to change. An \texttt{Observations} workflow's internal structure
+should change only when the observation-ingestion process itself changes
+--- a new data source, a revised quality-control step --- and should be
+insulated from changes to, say, the internal structure of a \texttt{Model}
+workflow's simulation stages, even though the two workflows are connected
+by a data dependency.
+
+Folding both pipelines into a single, undifferentiated \texttt{Workflow}
+object would violate this principle: a researcher modifying the model's
+internal task decomposition would need to navigate the observation
+pipeline's tasks to find the model's, and a change to either pipeline's
+internal task names could silently break \texttt{workflow://} references
+authored against the old names, with no namespace boundary to localize the
+blast radius of the change. \texttt{DAG\_TPS} restores the namespace
+boundary the cross-workflow form \texttt{workflow://<workflow-name>/...}
+already implies syntactically (\Cref{ch:schema}): each constituent
+\texttt{Workflow} can be developed, version-controlled, and reasoned about
+largely independently, with the meta-workflow layer responsible only for
+the comparatively small number of edges that genuinely cross the boundary.
+
+\begin{practicebox}
+A practical corollary: when a researcher notices that a single
+\texttt{Workflow} object has grown to encompass two or more conceptually
+distinct pipelines --- observation ingestion and model execution being the
+canonical example used throughout this book --- that growth is itself a
+signal worth acting on. Splitting the monolithic workflow into separate
+\texttt{Workflow} objects, connected through \texttt{DAG\_TPS} and explicit
+cross-workflow \texttt{workflow://} references, restores the modularity
+single-responsibility design favors, at the documented cost
+(\Cref{ch:meta-async}) of relying on a less heavily tested code path than
+single-workflow execution.
+\end{practicebox}
+
+\section{Event-Driven Design and the Observer Pattern}
+
+The lifecycle event model of Lesson~11 (\Cref{tab:lifecycle-events}) is a
+direct application of what object-oriented design literature calls the
+\emph{observer pattern}: a subject (here, the \texttt{Workflow} or an
+individual \texttt{Task}) maintains a list of interested observers
+(callbacks registered via \texttt{+=} or \texttt{add\_listener}) and
+notifies each of them, without itself needing to know anything about what
+those observers do, whenever a relevant state transition occurs. This
+decoupling is what allows the same workflow engine core to serve radically
+different operational contexts --- a one-off script that simply prints
+progress to a terminal, a notebook cell that updates a progress bar widget,
+or a production web service that updates a database row and triggers a
+downstream notification --- without any of those contexts requiring a
+modification to the engine itself; each is simply a different set of
+registered observers attached to the same, unmodified event-emitting
+\texttt{Workflow}.
+
+\begin{example}
+Consider a minimal operational controller built entirely from the lifecycle
+events of \Cref{tab:lifecycle-events}, with no polling loop anywhere in its
+implementation:
+\begin{lstlisting}
+status = {"state": "idle"}
+
+def on_start(wf):
+    status["state"] = "running"
+
+def on_end(wf):
+    status["state"] = "complete"
+    notify_downstream_service(wf.name)
+
+workflow.on_workflow_start += on_start
+workflow.on_workflow_end += on_end
+workflow.launch()
+\end{lstlisting}
+This controller's \texttt{status} dictionary --- which might back, for
+instance, an HTTP status endpoint in a small operational service --- stays
+correctly synchronized with the workflow's actual state purely through
+event notification, with no thread of the controller's own ever needing to
+ask ``is it done yet?''
+\end{example}
+
+\section{Failure Isolation in the Listener Model}
+
+\Cref{ch:meta-async} noted, in passing, that listener exceptions are logged
+and do not stop the workflow. This design choice deserves a fuller
+discussion, because it represents a deliberate trade-off between two
+competing goals --- \emph{robustness} of the core workflow execution, and
+\emph{visibility} of bugs in observer code --- and a workflow author should
+understand which side of that trade-off the engine has chosen before relying
+on lifecycle callbacks for anything operationally critical.
+
+The chosen design favors robustness: a buggy or exception-raising callback
+--- for instance, a progress-reporting function that crashes on an
+unexpected character encoding --- cannot, by design, cause an otherwise
+healthy scientific workflow to fail. This is generally the right default for
+a workflow engine, since the scientific computation a workflow exists to
+perform should not be held hostage to the correctness of incidental
+monitoring or logging code layered on top of it.
+
+\begin{cautionbox}
+The cost of this robustness is that a callback's silent failure is, by
+construction, not visible through the workflow's own \texttt{Status}
+(\Cref{sec:status-model}) or return value --- only through whatever logging
+configuration (\Cref{ch:configuration}) is in place to surface logged
+exceptions. A workflow author who depends on a lifecycle callback for an
+operationally important side effect --- triggering a downstream publication
+step, say, as the synthesis chapter's forecasting-chain pattern
+(\Cref{ch:synthesis}) will do --- should verify, separately from the
+workflow's own success/failure status, that the relevant callback actually
+executed without error, rather than assuming that workflow success implies
+callback success.
+\end{cautionbox}
+
+\section{Chapter Summary}
+
+\texttt{DAG\_TPS} composes independently defined workflows through the same
+\texttt{workflow://} schema used within a single workflow, at the cost of
+reduced automated-test coverage that should be respected operationally.
+\texttt{launch()}/\texttt{wait()} and the lifecycle event table give a
+workflow author non-blocking execution and fine-grained progress reporting
+without polling. This chapter additionally grounded the meta-workflow design
+in the single-responsibility principle of software engineering, framed the
+lifecycle event model as an instance of the classical observer pattern with
+a worked, polling-free controller example, and examined the deliberate
+robustness-versus-visibility trade-off behind the engine's choice to isolate
+listener exceptions from workflow execution. Together, these two lessons
+complete the engine's \emph{composition and orchestration} layer;
+\Cref{ch:llm-tasks} through \Cref{ch:native-tasks} now turn to the engine's
+most distinctive contribution: first-class AI and web-service tasks.
+
+\begin{exercise}
+Design, in prose and pseudocode, a lifecycle-event-based mechanism that
+would let a workflow author detect, \emph{without} consulting external
+logs, whether an \texttt{on\_workflow\_end} callback raised an exception
+during a \texttt{launch()}/\texttt{wait()} execution. (Hint: consider what a
+callback can do, within itself, to communicate failure back to the code that
+called \texttt{wait()}, given that the callback's own exceptions are
+swallowed by the engine.)
+\end{exercise}

@@ -1,0 +1,404 @@
+\chapter{Reference Guide: Public API}
+\label{app:reference}
+
+This appendix consolidates the engine's public API for use as a standing
+reference once the narrative chapters of Parts~I--III have been read. It
+mirrors the project's own \texttt{reference\_guide.md} in full, and
+additionally interleaves short discussion paragraphs connecting each API
+surface back to the chapter in which its design rationale was developed, so
+that this appendix can serve a reader either as a pure lookup table or as a
+condensed second pass through the book's argument.
+
+\section{Import Conventions}
+
+\begin{lstlisting}
+from dagon import Workflow, DataMover, StagerMover
+from dagon.task import DagonTask, TaskType
+\end{lstlisting}
+
+These two import lines are, in a precise sense, the entire public surface a
+workflow author needs for the great majority of workflows discussed in this
+book: every example from \Cref{ch:lessons-01-02} through
+\Cref{ch:native-tasks} is expressible using only the names imported here,
+plus the task-type-specific keyword arguments documented later in this
+appendix. The optional \texttt{dagon.api}, \texttt{dagon.dag\_tps}, and
+\texttt{dagon.config} modules, discussed in their respective sections below,
+are imported separately precisely because they are optional in the sense
+already developed in \Cref{ch:getting-started}: a workflow that never uses
+the DAGon service, meta-workflows, or programmatic configuration access has
+no need to import them at all.
+
+\section{\texttt{dagon.Workflow}}
+
+\begin{lstlisting}[caption={Constructor signature.}]
+Workflow(
+    name,
+    config=None,
+    config_file="dagon.ini",
+    max_threads=10,
+    jsonload=None,
+    checkpoint_file=None,
+)
+\end{lstlisting}
+
+\begin{description}[leftmargin=2.2em, style=nextline]
+  \item[\texttt{name}] workflow name.
+  \item[\texttt{config}] optional in-memory configuration dictionary.
+  \item[\texttt{config\_file}] INI file path used when \texttt{config} is
+    not provided.
+  \item[\texttt{max\_threads}] semaphore size currently stored for task use.
+  \item[\texttt{jsonload}] JSON-like workflow object to load.
+  \item[\texttt{checkpoint\_file}] file path for writing checkpoint
+    metadata.
+\end{description}
+
+Recall from \Cref{ch:configuration}'s discussion of the layered override
+mechanism that \texttt{config} and \texttt{config\_file} are mutually
+exclusive in effect, not additive: supplying \texttt{config} bypasses
+\texttt{config\_file} entirely, rather than overlaying it. The
+\texttt{checkpoint\_file} parameter, examined in full in
+\Cref{ch:lessons-05-07} and Appendix~D, is what activates the
+\texttt{<workflow-name>.<task-name>} checkpoint-key scheme; omitting it
+entirely disables checkpoint recording, which is the correct choice for the
+many short, cheap-to-rerun tutorial-scale workflows used throughout
+Part~I, and the incorrect choice for any workflow expensive enough to
+warrant resumability.
+
+\paragraph{Selected methods.}
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{add\_task(task)}: add a task and attach it to this workflow.
+  \item \texttt{make\_dependencies()}: parse dataflow references and
+    validate the graph.
+  \item \texttt{run(resume\_checkpoint\_file=None)}: run tasks in the
+    current thread.
+  \item \texttt{launch(resume\_checkpoint\_file=None)}: run tasks in a
+    background thread.
+  \item \texttt{wait(timeout=None)}: wait for a launched workflow; returns
+    whether it ended.
+  \item \texttt{add\_listener(event\_name, callback)}: register a workflow
+    or task lifecycle callback.
+  \item \texttt{set\_dry(dry)} / \texttt{get\_dry()}: set/return the
+    dry-run flag.
+  \item \texttt{set\_data\_mover(data\_mover)} / \texttt{get\_data\_mover()}:
+    set/return the workflow default data mover.
+  \item \texttt{set\_stager\_mover(stager\_mover)}: set the workflow default
+    staging mode.
+  \item \texttt{get\_scratch\_dir\_base()}: compute or return the workflow
+    scratch base.
+  \item \texttt{find\_task\_by\_name(workflow\_name, task\_name)}: locate a
+    task.
+  \item \texttt{as\_json()}: serialize workflow metadata.
+  \item \texttt{load\_json(Json\_data)}: load tasks from JSON-like data.
+  \item \texttt{Validate\_WF()}: reject cycles.
+\end{itemize}
+
+Two of these methods deserve a cross-reference a pure API listing would
+otherwise omit. \texttt{as\_json()}/\texttt{load\_json()} are the mechanism
+underlying the cross-process workflow transport implied by
+\Cref{sec:service-architecture}'s optional DAGon service, and are also what
+makes a serialized workflow --- including its \texttt{LLM} task provider
+references, per \Cref{ch:llm-tasks} --- portable across machines, provided
+the receiving machine has the same named provider configured locally.
+\texttt{get\_scratch\_dir\_base()} is the method whose return value
+ultimately determines where every artifact discussed in
+\Cref{ch:lessons-03-04}'s scratch-directory anatomy (\Cref{fig:task-dir})
+physically lives.
+
+\section{\texttt{dagon.Status}}
+
+\begin{center}
+\begin{tabular}{@{}l@{}}
+\toprule
+\textbf{Value} \\
+\midrule
+\texttt{Status.READY} \\
+\texttt{Status.WAITING} \\
+\texttt{Status.RUNNING} \\
+\texttt{Status.FINISHED} \\
+\texttt{Status.FAILED} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This five-state model is the concrete realization of the abstract,
+topological-order-driven scheduling argument developed in
+\Cref{sec:topological-ordering}: \texttt{READY} corresponds exactly to a
+node with no remaining incoming edges in the source-removal construction
+given there, and the transition from \texttt{WAITING} to \texttt{READY},
+triggered when a task's last predecessor reaches \texttt{FINISHED}, is the
+runtime enactment of that construction's repeated source-removal step.
+
+\section{\texttt{dagon.task.TaskType}}
+
+\begin{center}
+\begin{tabular}{@{}l@{}}
+\toprule
+\textbf{Value} \\
+\midrule
+\texttt{TaskType.CHECKPOINT} \\
+\texttt{TaskType.BATCH} \\
+\texttt{TaskType.SLURM} \\
+\texttt{TaskType.CLOUD} \\
+\texttt{TaskType.DOCKER} \\
+\texttt{TaskType.LLM} \\
+\texttt{TaskType.NATIVE} \\
+\texttt{TaskType.WEB} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{\texttt{dagon.task.DagonTask}}
+
+\begin{lstlisting}
+task = DagonTask(TaskType.BATCH, "A", "echo A")
+\end{lstlisting}
+
+The concrete class is selected from the \texttt{tasks\_types} mapping:
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Task type} & \textbf{Module} & \textbf{Class} \\
+\midrule
+\texttt{CHECKPOINT} & \texttt{dagon.checkpoint} & \texttt{Checkpoint} \\
+\texttt{BATCH}       & \texttt{dagon.batch} & \texttt{Batch} \\
+\texttt{CLOUD}       & \texttt{dagon.remote} & \texttt{CloudTask} \\
+\texttt{DOCKER}      & \texttt{dagon.docker\_task} & \texttt{DockerTask} \\
+\texttt{LLM}         & \texttt{dagon.llm} & \texttt{LLMTask} \\
+\texttt{NATIVE}      & \texttt{dagon.native} & \texttt{NativeTask} \\
+\texttt{WEB}         & \texttt{dagon.web} & \texttt{WebTask} \\
+\texttt{SLURM}       & \texttt{dagon.batch} & \texttt{Slurm} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This table is, in effect, the implementation-level evidence for the factory-
+pattern discussion of \Cref{sec:factory-pattern-depth}: every row maps an
+identical calling convention --- \texttt{DagonTask(TaskType.X, name,
+payload, ...)} --- onto a distinct concrete class living in its own module,
+several of which (\texttt{dagon.docker\_task}, \texttt{dagon.llm},
+\texttt{dagon.native}, \texttt{dagon.web}) are, per
+\Cref{sec:known-constraints}, lazily imported, so that constructing a
+\texttt{BATCH} task never requires the Docker SDK or any web-request library
+to even be installed.
+
+\section{\texttt{dagon.task.Task}}
+
+\begin{lstlisting}[caption={Base constructor.}]
+Task(name, command, working_dir=None, transversal_workflow=None, globusendpoint=None)
+\end{lstlisting}
+
+\paragraph{Important attributes.} \texttt{name}, \texttt{command},
+\texttt{working\_dir}, \texttt{nexts}, \texttt{prevs},
+\texttt{reference\_count}, \texttt{workflow}, \texttt{status},
+\texttt{data\_mover}, \texttt{stager\_mover}, \texttt{globusendpoint}.
+
+\paragraph{Important methods.} \texttt{add\_dependency\_to(task)},
+\texttt{add\_transversal\_point(task)}, \texttt{pre\_run()},
+\texttt{pre\_process\_command(command)}, \texttt{post\_process\_command(command)},
+\texttt{include\_command(body)}, \texttt{create\_working\_dir()},
+\texttt{execute()}, \texttt{run()}, \texttt{as\_json()},
+\texttt{get\_scratch\_dir()}, \texttt{get\_endpoint()},
+\texttt{set\_endpoint(globusendpoint)}, \texttt{set\_data\_mover(data\_mover)},
+\texttt{set\_stager\_mover(stager\_mover)}.
+
+Subclasses are expected to implement or specialize command execution
+(\Cref{ch:architecture}). Of the attributes listed, \texttt{prevs} and
+\texttt{nexts} are the two a workflow author will inspect most often during
+the local-structural-verification pattern recommended throughout
+\Cref{ch:backends,ch:lessons-01-02}; \texttt{pre\_run()} and
+\texttt{pre\_process\_command()} are the two methods that jointly implement
+the dependency-inference algorithm formalized in \Cref{ch:schema}.
+
+\section{Batch and Slurm Tasks}
+
+\begin{lstlisting}
+DagonTask(TaskType.BATCH, "local", "hostname")
+\end{lstlisting}
+
+Remote batch is selected by passing SSH parameters:
+
+\begin{lstlisting}
+DagonTask(
+    TaskType.BATCH, "remote", "hostname",
+    ip="example.org", ssh_username="user", keypath="/path/to/key",
+)
+\end{lstlisting}
+
+\begin{lstlisting}
+DagonTask(
+    TaskType.SLURM, "simulation", "./run.sh",
+    partition="compute", ntasks=4, memory=4096, time="01:00:00",
+)
+\end{lstlisting}
+
+Supported Slurm constructor options include: \texttt{comment},
+\texttt{partition}, \texttt{ntasks}, \texttt{memory}, \texttt{time},
+\texttt{nodes}, \texttt{ntasks\_per\_node}, \texttt{working\_dir},
+\texttt{globusendpoint}. Remote Slurm is selected by passing \texttt{ip}.
+See \Cref{ch:backends} for the queueing-cost and structural-verification
+discussion that should accompany any first use of these parameters against
+a real cluster.
+
+\section{Docker Tasks}
+
+\begin{lstlisting}
+DagonTask(
+    TaskType.DOCKER, "container-task", "python --version",
+    image="python:3.12-slim",
+)
+\end{lstlisting}
+
+Options include: \texttt{image}, \texttt{container\_id},
+\texttt{working\_dir}, \texttt{globusendpoint}, \texttt{remove},
+\texttt{volume}. Remote Docker is selected by passing SSH information
+including \texttt{ip}. The \texttt{image} value, as discussed in
+\Cref{ch:backends}'s tag-versus-digest reproducibility comparison, should be
+considered for digest-pinning whenever the workflow's results are intended
+for archival or publication.
+
+\section{Cloud Tasks}
+
+Cloud tasks are backed by \texttt{dagon.remote.CloudTask} and Apache
+Libcloud. They require provider information, an SSH user, key options, and
+either an existing instance or instance flavor data. Cloud behavior is
+provider-specific and should be tested in the target environment. As noted
+in \Cref{ch:configuration}'s discussion of configuration sections not
+exercised in this book's worked examples, no runnable cloud example is
+given here; the provider-specific authentication and provisioning model
+must be verified against the target provider's own current documentation.
+
+\section{LLM Tasks}
+
+\begin{lstlisting}[caption={\texttt{LLMTask} constructor.}]
+DagonTask(TaskType.LLM, name, prompt, provider, params=None, input_files=None,
+          working_dir=None, output_file="response.json", timeout=120)
+\end{lstlisting}
+
+\texttt{prompt} is a JSON object (or a JSON string) containing
+\texttt{messages}; string values may use \texttt{\{parameter\}} placeholders
+from \texttt{params} or \texttt{input\_files}. Provider configuration is read
+from \texttt{[llm.<provider>]}. \texttt{input\_files} maps parameter names to
+\texttt{workflow://} references, which infer dependencies and stage local
+UTF-8 text before the request. The default \texttt{timeout=120} should be
+reconsidered, per \Cref{ch:llm-tasks}'s discussion of operational
+constraints, against the documented typical latency of whichever real
+provider a workflow ultimately targets. See \Cref{ch:llm-tasks}.
+
+\section{Native Tasks}
+
+\begin{lstlisting}[caption={\texttt{NativeTask} constructor.}]
+DagonTask(TaskType.NATIVE, name, function, inputs=None, outputs=None,
+          executor="local", resources=None, python=sys.executable,
+          working_dir=None, environment=None)
+\end{lstlisting}
+
+Inputs may be JSON scalars, existing local files, or \texttt{workflow://}
+file references. File values are staged below \texttt{inputs/};
+\texttt{outputs} maps parameter names to safe relative paths below
+\texttt{outputs/}. JSON return metadata is written to
+\texttt{.dagon/native\_result.json}. \texttt{executor} accepts
+\texttt{local} and \texttt{slurm}; functions must be importable module-level
+callables, for the serialization-related reasons developed in full in
+\Cref{ch:native-tasks}. See \Cref{ch:native-tasks}.
+
+\section{Web Tasks}
+
+\begin{lstlisting}[caption={\texttt{WebTask} specification.}]
+DagonTask(TaskType.WEB, name,
+    {"method": "GET", "url": "https://example.org",
+     "outputs": {"body": "response.json"}},
+    executor="local")
+\end{lstlisting}
+
+Specifications support \texttt{query}, \texttt{headers}, \texttt{json},
+\texttt{data}, \texttt{multipart}, \texttt{auth}, \texttt{timeout}, retry
+settings, expected status codes, and \texttt{outputs}. Recursive
+\texttt{workflow://} values infer dependencies; referenced files are copied
+below \texttt{inputs/}. Body, headers, and metadata outputs are safe
+relative paths below \texttt{outputs/}; \texttt{.dagon/web\_result.json}
+stores non-secret status metadata. Supported authentication is bearer,
+basic, API-key header, or API-key query, always through environment-variable
+\emph{names} rather than literal secrets. \texttt{executor="slurm"} accepts
+existing scheduler options in \texttt{resources}. The retry settings
+mentioned here interact directly with the idempotency considerations
+developed in \Cref{ch:web-tasks}; review that chapter's discussion before
+enabling automatic retries against a non-idempotent endpoint. See
+\Cref{ch:web-tasks}.
+
+\section{Data Movement Enumerations}
+
+\paragraph{\texttt{DataMover}.} \texttt{DONTMOVE}, \texttt{LINK},
+\texttt{COPY}, \texttt{SCP}, \texttt{HTTP}, \texttt{HTTPS}, \texttt{FTP},
+\texttt{SFTP}, \texttt{GRIDFTP}, \texttt{SKYCDS}. The cost/self-containment
+trade-off between \texttt{COPY} and \texttt{LINK} specifically is examined
+quantitatively in \Cref{ch:lessons-05-07}.
+
+\paragraph{\texttt{StagerMover}.} \texttt{NORMAL}, \texttt{PARALLEL},
+\texttt{SLURM}.
+
+\section{Configuration API}
+
+\begin{lstlisting}
+from dagon.config import read_config
+
+all_sections = read_config("dagon.ini")
+batch = read_config("dagon.ini", "batch")
+\end{lstlisting}
+
+If a requested section does not exist, \texttt{read\_config(..., section)}
+returns \texttt{None}. This function underlies the file-based configuration
+path discussed in \Cref{ch:configuration}; note that it is bypassed entirely
+when a \texttt{Workflow} is constructed with an in-memory \texttt{config}
+dictionary instead.
+
+\section{Workflow Schema}
+
+The \texttt{workflow://} schema is documented in full in \Cref{ch:schema}.
+In brief:
+
+\begin{lstlisting}
+workflow://<workflow-name>/<task-name>/<path-inside-task-working-directory>
+workflow:///<task-name>/<path-inside-task-working-directory>
+\end{lstlisting}
+
+\section{Meta-Workflows}
+
+\begin{lstlisting}
+from dagon.dag_tps import DAG_TPS
+
+meta = DAG_TPS("ExperimentSet")
+meta.add_workflow(workflow_a)
+meta.add_workflow(workflow_b)
+meta.make_dependencies()
+meta.run()
+\end{lstlisting}
+
+Useful for transversal workflows that reference data across workflow
+boundaries (\Cref{ch:meta-async}). The meta-workflow code is
+legacy-sensitive and less covered by automated tests than local
+\texttt{Workflow} behavior; production use should be verified with
+representative workflows, preserving the verification command with the
+experiment record. See also this appendix's framing of this caveat within
+\Cref{ch:synthesis}'s closing, honesty-focused revisiting of the book's
+central claims.
+
+\section{Service API}
+
+\texttt{dagon.api.API} communicates with a DAGon service endpoint. It
+supports: \texttt{create\_workflow(workflow)},
+\texttt{add\_task(workflow\_id, task)},
+\texttt{update\_task\_status(workflow\_id, task, status)},
+\texttt{get\_task(workflow\_id, task)},
+\texttt{get\_workflow\_by\_name(workflow\_name)},
+\texttt{update\_task(workflow\_id, task, attribute, value)},
+\texttt{add\_dependency(workflow\_id, task, dependency)}.
+
+The service is optional and disabled in the default sample configuration
+(\Cref{sec:service-architecture}). A reader who has worked through this
+book's local-first examples exclusively, as the examples-catalog discussion
+of \Cref{ch:examples-catalog} recommends, will not have exercised this API
+directly; it becomes relevant only when a deployment genuinely requires the
+multi-process or multi-host coordination discussed in
+\Cref{ch:architecture}'s comparison of layered-in-process and microservice
+architectural alternatives.

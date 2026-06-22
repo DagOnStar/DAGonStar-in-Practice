@@ -1,0 +1,250 @@
+\chapter{Consolidated Configuration Reference}
+\label{app:configuration}
+
+This appendix reproduces a complete, consolidated \texttt{dagon.ini}
+reference, assembling every section discussed individually in
+\Cref{ch:configuration}, for use as a single lookup document while authoring
+workflows.
+
+\section{How to Use This Appendix}
+
+Two reading strategies suit two different needs. A reader setting up a new
+workflow's configuration for the first time should treat the consolidated
+listing below as a \emph{starting template}: copy it, delete every section
+the workflow's task types do not actually require (per the
+backend-selection guidance of \Cref{tab:backend-selection}), and fill in
+only the remaining, genuinely needed sections --- resisting the temptation
+to retain unused sections ``just in case,'' since an unused but populated
+section is, per \Cref{ch:configuration}'s auditing-procedure discussion,
+one more place a stray credential placeholder could later be mistaken for a
+real value. A reader instead debugging an existing, unfamiliar
+\texttt{dagon.ini} should use the quick-reference table at the end of this
+appendix as an index, then follow each entry's chapter cross-reference back
+to \Cref{ch:configuration}'s fuller discussion of that section's semantics
+and failure modes.
+
+\begin{lstlisting}[style=ini, caption={A consolidated, illustrative \texttt{dagon.ini} (placeholders only --- never commit real secrets).}]
+; ---------------------------------------------------------------
+; Optional DAGon service (disabled by default; see Sec. 5.2.1)
+; ---------------------------------------------------------------
+[dagon_service]
+route = http://localhost:57000
+use = False
+
+; ---------------------------------------------------------------
+; FTP publishing / transversal data download (Sec. 5.2.2)
+; ---------------------------------------------------------------
+[ftp_pub]
+ip = localhost
+
+; ---------------------------------------------------------------
+; Service/node addressing (Sec. 5.2.3)
+; ---------------------------------------------------------------
+[dagon_ip]
+ip = localhost
+
+; ---------------------------------------------------------------
+; Local batch execution and scratch layout (Sec. 5.2.4)
+; ---------------------------------------------------------------
+[batch]
+scratch_dir_base=/tmp/
+run_base=
+remove_dir=False
+threads=1
+
+; ---------------------------------------------------------------
+; Slurm scheduler defaults (Sec. 5.2.5)
+; ---------------------------------------------------------------
+[slurm]
+partition=
+
+; ---------------------------------------------------------------
+; LLM providers: any number of [llm.<name>] sections (Sec. 5.2.6)
+; ---------------------------------------------------------------
+[llm.example]
+endpoint=https://api.example.org
+api_key_env=DAGON_LLM_EXAMPLE_API_KEY
+model=example-chat-model
+
+; ---------------------------------------------------------------
+; Cloud providers (Sec. 5.2.8)
+; ---------------------------------------------------------------
+[ec2]
+key=<aws_access_key_id>
+secret=<aws_secret_access_key>
+region=
+
+[digitalocean]
+key=
+
+[gce]
+key=
+secret=
+project=
+
+; ---------------------------------------------------------------
+; Standard Python logging configuration (Sec. 5.2.9)
+; ---------------------------------------------------------------
+[loggers]
+keys=root
+
+[handlers]
+keys=stream_handler
+
+[formatters]
+keys=formatter
+
+[logger_root]
+level=DEBUG
+handlers=stream_handler
+
+[handler_stream_handler]
+class=StreamHandler
+level=DEBUG
+formatter=formatter
+args=(sys.stderr,)
+
+[formatter_formatter]
+format=%(asctime)s %(name)-12s %(levelname)-8s %(message)s
+\end{lstlisting}
+
+\section{Worked Example: Configuring a Two-Backend Workflow}
+
+To make the abstract template above concrete, consider configuring a
+workflow that mixes a local \texttt{BATCH} preparation task with a
+\texttt{SLURM}-scheduled simulation and an \texttt{LLM}-based summarization
+step --- a three-backend combination representative of the synthesis
+chapter's forecasting-chain pattern (\Cref{ch:synthesis}). Applying the
+``delete what is unused'' principle from the previous section, the correctly
+trimmed configuration retains only:
+
+\begin{lstlisting}[style=ini]
+[dagon_service]
+use = False
+
+[batch]
+scratch_dir_base=/data/dagon-scratch/
+run_base=%Y%m%d-%H%M%S
+threads=4
+
+[slurm]
+partition=compute
+
+[llm.research]
+endpoint=https://api.example.org
+api_key_env=DAGON_RESEARCH_LLM_KEY
+model=research-chat
+\end{lstlisting}
+
+Note what was deliberately omitted relative to the full template: no cloud
+provider section (no \texttt{CLOUD} task is used), no \texttt{ftp\_pub} or
+\texttt{dagon\_ip} section (no transversal or service-backed task is used),
+and a \texttt{scratch\_dir\_base} deliberately moved off \texttt{/tmp/} to
+durable storage, per \Cref{ch:getting-started}'s caution about treating
+\texttt{/tmp} as durable across a checkpointed, multi-session operational
+deployment. The logging sections are also omitted here on the assumption
+that this configuration is supplied as an in-memory \texttt{config}
+dictionary rather than loaded via \texttt{config\_file} --- recall from
+\Cref{ch:configuration}'s discussion of the layered override mechanism that
+\texttt{fileConfig()} is invoked only on the file-loading path, so a purely
+programmatic configuration has no logging-section obligation the file-based
+path would otherwise impose.
+
+\section{Runtime Environment Variables (not in \texttt{dagon.ini})}
+
+\begin{lstlisting}[style=bash]
+; SKYCDS staging credentials
+export DAGON_SKYCDS_CLIENT_TOKEN=...
+export DAGON_SKYCDS_CATALOG_TOKEN=...
+export DAGON_SKYCDS_API_TOKEN=...
+export DAGON_SKYCDS_IP=...
+
+; Globus transfer
+export DAGON_GLOBUS_TRANSFER_TOKEN=...
+
+; LLM provider credential, named by api_key_env above
+export DAGON_LLM_EXAMPLE_API_KEY=...
+
+; Web task authentication, named by token_env / username_env / password_env
+export SERVICE_TOKEN=...
+\end{lstlisting}
+
+This environment-variable list is, collectively, the concrete instantiation
+of the security-expectations discipline reproduced in Appendix~B: every one
+of these variables exists specifically so that the corresponding
+\texttt{*\_env}-suffixed configuration key (or, in SKYCDS's and Globus's
+case, a documented fixed variable name) can name a secret \emph{indirectly},
+without that secret ever appearing as a literal string anywhere in
+versioned configuration, workflow source, or serialized workflow JSON
+(recall \Cref{app:reference}'s note that \texttt{as\_json()} can serialize a
+full workflow, including its \texttt{LLM} task provider references --- a
+further, concrete reason the credential itself must never be embedded
+directly in anything that serialization might capture).
+
+\section{Quick-Reference Table}
+
+\begin{center}
+\begin{tabular}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
+\toprule
+\textbf{Section} & \textbf{Purpose} \\
+\midrule
+\texttt{[dagon\_service]} & Optional remote registration/status service;
+  \texttt{use=False} for local-only operation. \\
+\texttt{[ftp\_pub]} & FTP host for transversal workflow data download. \\
+\texttt{[dagon\_ip]} & Service/node addressing; not required locally. \\
+\texttt{[batch]} & Scratch directory base, run grouping, staging thread
+  count. \\
+\texttt{[slurm]} & Default Slurm partition for staging command generation. \\
+\texttt{[llm.<name>]} & One section per OpenAI-compatible LLM provider. \\
+\texttt{[ec2]}, \texttt{[digitalocean]}, \texttt{[gce]} & Cloud provider
+  credentials for \texttt{CLOUD} tasks (via Apache Libcloud). \\
+\texttt{[loggers]}, \texttt{[handlers]}, \texttt{[formatters]}, and
+  related sections & Standard Python \texttt{logging.config.fileConfig}
+  setup, required when \texttt{Workflow} is constructed without an explicit
+  \texttt{config} dictionary. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{practicebox}
+As a closing reminder consolidating \Cref{ch:configuration}'s scattered
+cautions: commit only safe templates (such as \texttt{dagon.ini.sample});
+never commit real secrets; record the configuration values that affect
+scientific reproducibility (scratch layout, model parameters, container
+images, cloud instance types, Slurm resource requests); and keep operational
+secrets strictly separate from reproducibility metadata by referencing only
+environment-variable \emph{names} in versioned configuration.
+\end{practicebox}
+
+\begin{center}
+\begin{tabular}{@{}p{0.24\linewidth}p{0.70\linewidth}@{}}
+\toprule
+\textbf{Section} & \textbf{Purpose} \\
+\midrule
+\texttt{[dagon\_service]} & Optional remote registration/status service;
+  \texttt{use=False} for local-only operation. \\
+\texttt{[ftp\_pub]} & FTP host for transversal workflow data download. \\
+\texttt{[dagon\_ip]} & Service/node addressing; not required locally. \\
+\texttt{[batch]} & Scratch directory base, run grouping, staging thread
+  count. \\
+\texttt{[slurm]} & Default Slurm partition for staging command generation. \\
+\texttt{[llm.<name>]} & One section per OpenAI-compatible LLM provider. \\
+\texttt{[ec2]}, \texttt{[digitalocean]}, \texttt{[gce]} & Cloud provider
+  credentials for \texttt{CLOUD} tasks (via Apache Libcloud). \\
+\texttt{[loggers]}, \texttt{[handlers]}, \texttt{[formatters]}, and
+  related sections & Standard Python \texttt{logging.config.fileConfig}
+  setup, required when \texttt{Workflow} is constructed without an explicit
+  \texttt{config} dictionary. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{practicebox}
+As a closing reminder consolidating \Cref{ch:configuration}'s scattered
+cautions: commit only safe templates (such as \texttt{dagon.ini.sample});
+never commit real secrets; record the configuration values that affect
+scientific reproducibility (scratch layout, model parameters, container
+images, cloud instance types, Slurm resource requests); and keep operational
+secrets strictly separate from reproducibility metadata by referencing only
+environment-variable \emph{names} in versioned configuration.
+\end{practicebox}

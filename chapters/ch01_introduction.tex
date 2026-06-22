@@ -1,0 +1,452 @@
+\chapter{Introduction to Scientific Workflows}
+\label{ch:introduction}
+
+\epigraph{If these steps remain implicit in shell history, personal notebooks,
+or site-specific scripts, the experiment is difficult to audit. Workflow
+systems make the structure explicit.}{\textit{DAGonStar documentation,
+Introduction to Scientific Workflows}}
+
+\section{Why Workflows Matter in Computational Science}
+
+Modern computational science rarely consists of a single program executed
+once. A realistic environmental-science experiment, for instance, combines
+many heterogeneous activities:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item preprocessing observational data;
+  \item running models or simulations;
+  \item staging intermediate files between machines;
+  \item executing tools on HPC clusters or cloud instances;
+  \item post-processing model products;
+  \item publishing scientific outputs;
+  \item preserving sufficient context to reproduce a result.
+\end{itemize}
+
+When these steps are encoded only in shell history, ad hoc notebooks, or
+site-specific scripts passed from one student to the next, the resulting
+experiment is opaque: it cannot easily be audited, repeated by a different
+researcher, or ported to a different machine. A \emph{workflow system} exists
+precisely to make this implicit structure explicit, executable, and
+inspectable.
+
+DAGonStar approaches the problem with a deliberately small abstraction: a
+\textbf{workflow is a directed acyclic graph (DAG) of tasks}, and each
+\textbf{task} is a Python object that executes a command in a particular
+environment. The remainder of this chapter develops this abstraction
+formally and explains the scientific benefits it is designed to deliver.
+
+\subsection{The Scientific Benefits of Explicit Workflows}
+
+The DAGonStar documentation identifies five principal benefits that follow
+from making computational structure explicit:
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Reproducibility] the sequence of computations is encoded as source
+    code, not as institutional memory.
+  \item[Traceability] inputs, outputs, and task dependencies are visible as
+    first-class graph structure rather than buried in script side effects.
+  \item[Portability] the same workflow structure can target different
+    execution backends --- a laptop today, an HPC cluster tomorrow --- without
+    rewriting the scientific logic.
+  \item[Parallelism] independent tasks can run concurrently when resources
+    permit, because the dependency graph makes independence explicit.
+  \item[Recoverability] checkpointing can avoid recomputing finished work
+    after a partial failure, which matters enormously for expensive
+    simulations.
+\end{description}
+
+\begin{practicebox}
+Even apparently small automation gains compound at scale. A workflow that
+takes ten extra minutes to encode explicitly, instead of being run by hand
+from a terminal, pays for itself the first time it must be rerun --- with a
+different parameter, on a different machine, or six months after the original
+researcher has left the project.
+\end{practicebox}
+
+\section{Directed Acyclic Graphs}
+\label{sec:dag-theory}
+
+\begin{definitionbox}{Directed Acyclic Graph (DAG)}
+A \emph{directed acyclic graph} $G = (V, E)$ consists of a finite set of
+\textbf{nodes} $V$ and a set of directed \textbf{edges} $E \subseteq V \times
+V$, such that there is no sequence of edges
+$v_1 \to v_2 \to \dots \to v_k \to v_1$ that returns to its starting node. In
+scientific workflow terminology:
+\begin{itemize}
+  \item a \textbf{node} is a computational \emph{task};
+  \item an \textbf{edge} $(u,v) \in E$ means that task $v$ \emph{depends on}
+    task $u$, i.e.\ $u$ must complete before $v$ may begin;
+  \item \textbf{acyclic} means the graph contains no circular dependency.
+\end{itemize}
+\end{definitionbox}
+
+The acyclicity constraint is not a mathematical nicety: it is the precise
+condition under which a valid execution order (a \emph{topological sort})
+exists. If a cycle were permitted, no task in the cycle could be scheduled
+first without violating some dependency in the cycle, and the workflow would
+be unrealizable.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=16mm and 22mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=20mm, minimum height=9mm,
+    font=\sffamily\bfseries},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (A) {Tokio};
+  \node[task, right=of A] (D) {Mosco};
+  \node[task, above=of D] (B) {Berlin};
+  \node[task, below=of D] (C) {Nairobi};
+  \draw[arr] (A) -- (B);
+  \draw[arr] (A) -- (C);
+  \draw[arr] (B) -- (D);
+  \draw[arr] (C) -- (D);
+\end{tikzpicture}
+\caption{A four-task DAG corresponding to the engine's canonical
+``Batch Task Flow'' example. \texttt{Tokio} has no predecessors and runs
+first; \texttt{Berlin} and \texttt{Nairobi} depend only on \texttt{Tokio} and
+may run concurrently; \texttt{Mosco} depends on both and runs last.}
+\label{fig:basic-dag}
+\end{figure}
+
+\Cref{fig:basic-dag} illustrates the canonical example used throughout the
+DAGonStar project, expressed as four \texttt{BATCH} tasks: \texttt{Tokio}
+writes a file consumed implicitly by \texttt{Mosco}, while \texttt{Berlin} and
+\texttt{Nairobi} are independent siblings that both depend only on
+\texttt{Tokio}. The graph immediately exposes the available parallelism: a
+scheduler is free to run \texttt{Berlin} and \texttt{Nairobi} concurrently
+once \texttt{Tokio} finishes.
+
+DAGonStar validates the workflow graph before execution, either implicitly
+when dependencies are constructed through \texttt{Workflow.make\_dependencies()},
+or explicitly via \texttt{Workflow.Validate\_WF()}. A cycle is treated as a
+\emph{modeling error}: the engine refuses to run a workflow whose dependency
+graph is not a true DAG.
+
+\section{Task-Oriented and Data-Oriented Workflows}
+\label{sec:task-vs-data}
+
+DAGonStar supports two complementary ways of describing a workflow, and the
+distinction between them is the single most important conceptual choice a
+workflow author makes.
+
+\subsection{Task-Oriented Workflows}
+
+In a \textbf{task-oriented workflow}, dependencies are stated explicitly by
+the author, independent of any file the tasks happen to exchange:
+
+\begin{lstlisting}[caption={Explicit dependency declaration.}]
+task_b.add_dependency_to(task_a)
+\end{lstlisting}
+
+This statement reads: ``\texttt{task\_b} must wait for \texttt{task\_a}.''
+Explicit dependencies are appropriate when the relationship between two tasks
+is \emph{conceptual or procedural} rather than a literal file consumption ---
+for example, ``validate parameters before launching the model.''
+
+\subsection{Data-Oriented Workflows}
+
+In a \textbf{data-oriented workflow}, dependencies are \emph{inferred} from
+the command text using the \texttt{workflow://} schema (developed fully in
+\Cref{ch:schema}):
+
+\begin{lstlisting}[caption={Implicit, data-driven dependency.}]
+task_b = DagonTask(TaskType.BATCH, "B", "cat workflow:///A/output/result.txt")
+\end{lstlisting}
+
+When \texttt{Workflow.make\_dependencies()} is called, DAGonStar scans every
+task's command string, finds the reference to task \texttt{A}, records the
+dependency $A \to B$, and later stages the referenced file into \texttt{B}'s
+working directory before \texttt{B} executes.
+
+\begin{practicebox}
+The data-oriented style is especially natural for scientific pipelines,
+because dependency edges then follow the \emph{data products} being consumed
+--- which is, after all, how a scientist already thinks about a processing
+chain: ``the post-processing step needs the simulation's NetCDF output,''
+not ``task three must follow task two for an unstated reason.''
+\end{practicebox}
+
+Both styles may, and routinely do, coexist in the same workflow: explicit
+edges encode procedural ordering, while \texttt{workflow://} edges encode
+genuine data lineage. \Cref{ch:lessons-01-02} develops both patterns with
+complete, runnable examples.
+
+\section{DAGonStar's Computational Model}
+\label{sec:computational-model}
+
+The current implementation centers on a small number of cooperating
+abstractions, summarized here and developed individually across the
+remainder of Part~I and Part~II:
+
+\begin{description}[leftmargin=2.2em,style=nextline]
+  \item[\texttt{Workflow}] the container and scheduler for a set of tasks;
+    owns dependency construction, execution, checkpoint state, and
+    configuration.
+  \item[\texttt{DagonTask}] a \emph{factory} that constructs a concrete task
+    implementation from a \texttt{TaskType} value.
+  \item[\texttt{Task}] the base class providing threaded task execution,
+    dependency bookkeeping, and \texttt{workflow://} resolution.
+  \item[\texttt{Batch}] a local shell task --- the simplest concrete
+    execution backend.
+  \item[\texttt{Slurm}] a task submitted through \texttt{sbatch} to an HPC
+    job scheduler.
+  \item[\texttt{RemoteTask}] a task executed on a remote host through SSH.
+  \item[\texttt{DockerTask}] a task executed inside a Docker container.
+  \item[\texttt{CloudTask}] a task bound to an Apache Libcloud-managed cloud
+    instance.
+  \item[\texttt{Stager}] the component responsible for generating or
+    invoking the data-movement operation between two dependent tasks.
+\end{description}
+
+Operationally, the workflow engine runs tasks as Python \texttt{threading.Thread}
+objects. Each task thread waits for its predecessors, prepares its scratch
+directory, resolves data references, executes its generated launcher script,
+updates its status, and finally releases the tasks that depend on it. This
+execution model is examined in full mechanical detail in
+\Cref{ch:architecture}.
+
+\section{The Role of Scratch Directories}
+
+Scientific workflows frequently produce many intermediate files. DAGonStar
+therefore gives \emph{every} task its own working directory, called a
+\textbf{scratch directory}. The base path for all scratch directories is set
+once, in configuration:
+
+\begin{lstlisting}[style=ini,caption={Minimal scratch directory configuration.}]
+[batch]
+scratch_dir_base=/tmp/
+\end{lstlisting}
+
+If a task is not given an explicit \texttt{working\_dir}, DAGonStar
+constructs one automatically from the workflow's scratch base and a
+timestamped task name (for example, \texttt{/tmp/1710000000000-prepare}).
+Every task additionally receives an internal \texttt{.dagon/} directory
+containing its generated launcher script and execution metadata --- a
+mechanism examined closely in \Cref{ch:lessons-03-04}.
+
+\section{Execution Backends at a Glance}
+
+DAGonStar's public task types are enumerated in \texttt{dagon.task.TaskType}:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{\texttt{TaskType}} & \textbf{Execution environment} \\
+\midrule
+\texttt{BATCH}      & Local (or remote, via SSH keyword arguments) shell command \\
+\texttt{SLURM}       & HPC job-scheduler submission via \texttt{sbatch} \\
+\texttt{CLOUD}       & Apache Libcloud-managed virtual machine \\
+\texttt{DOCKER}      & Containerized execution via the Docker SDK \\
+\texttt{LLM}         & OpenAI-compatible Chat Completions request \\
+\texttt{NATIVE}      & Importable Python \texttt{module:function} call \\
+\texttt{WEB}         & Arbitrary HTTP/HTTPS request \\
+\texttt{CHECKPOINT}  & Explicit checkpoint-preservation task \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Remote variants of several task types are selected not by a different
+\texttt{TaskType} value, but by \emph{keyword arguments}: for example, a
+\texttt{BATCH} task constructed with \texttt{ip=...} becomes a remote batch
+task transparently. This design keeps workflow code compact while still
+exposing several execution environments through one uniform factory,
+\texttt{DagonTask}. It also means that several integrations are
+\emph{optional}: using Docker, cloud, Globus, or remote SSH execution
+requires the corresponding site-specific service or credential, while the
+core local-batch engine has no such external dependency.
+
+\begin{practicebox}
+\texttt{LLM} tasks --- the engine's principal AI integration point --- call
+configured OpenAI-compatible Chat Completions providers and can consume local
+UTF-8 producer files through the same \texttt{workflow://} schema used by
+ordinary file-based tasks. This is the technical mechanism that allows an AI
+inference step to sit inside the same DAG as a numerical simulation, with the
+same dependency, staging, and provenance guarantees. \Cref{ch:llm-tasks} is
+devoted entirely to this mechanism.
+\end{practicebox}
+
+\section{Workflows in the Landscape of Computational Science}
+
+It is useful, before going further, to situate the workflow-orchestration
+problem within the broader history of computational science tooling, so
+that the design choices examined in later chapters can be understood not as
+arbitrary engineering preferences but as responses to a recurring,
+well-documented set of pressures.
+
+Three historically distinct strategies have been used to compose
+computational steps into a pipeline. The first, and oldest, is the
+\emph{shell script}: a linear sequence of commands, executed in source-code
+order, with control flow expressed through exit codes and conditional
+branches. Shell scripts are easy to write and require no additional
+software, but they conflate two logically separate concerns --- the
+\emph{order} in which steps must run and the \emph{mechanism} by which they
+run --- into a single, brittle, line-by-line narrative. A shell script
+cannot, without substantial additional engineering, express that two steps
+are mutually independent and may run concurrently, nor can it express, in a
+form a second program can inspect, which step produced which file.
+
+The second strategy is the \emph{build system}, exemplified historically by
+\texttt{make} and its descendants. Build systems were designed to compile
+software, not to run scientific experiments, but they introduced an idea
+central to this book: a target (a file to be produced) depends on a set of
+prerequisites (other files), and a recipe (a command) explains how to
+produce the target from the prerequisites once they exist. This is, in
+essence, a restricted form of the data-oriented dependency model developed
+in \Cref{sec:task-vs-data}. Build systems are excellent at avoiding
+redundant recomputation --- a target whose prerequisites have not changed is
+not rebuilt --- but they are typically confined to a single machine and a
+single execution environment, and their dependency language is tied tightly
+to file modification timestamps rather than to a richer notion of
+provenance.
+
+The third strategy, and the one this book is concerned with, is the
+\emph{dedicated scientific workflow engine}. Such engines generalize the
+build-system insight --- dependencies as a directed graph over named
+artifacts --- while relaxing its constraints: a task may run on a different
+machine than its consumer, may be backed by a container, a job scheduler, a
+remote web service, or an AI inference call, and the engine is expected to
+manage the data movement, environment provisioning, and failure recovery
+that a single-machine build tool can ignore. DAGonStar belongs to this third
+family, and the remainder of this book can be read as an extended case
+study in how one engine in this family resolves the tension between
+\emph{generality} (supporting arbitrary execution backends) and
+\emph{simplicity} (keeping the authoring surface close to ordinary Python).
+
+\begin{practicebox}
+A useful heuristic for deciding whether a computational pipeline has outgrown
+a shell script and needs a workflow engine: if you find yourself writing
+comments in a shell script that explain \emph{why} step three must follow
+step one, or maintaining a parallel README describing which script produced
+which file, the dependency structure you are documenting informally is
+exactly the structure a DAG-based engine would make executable.
+\end{practicebox}
+
+\section{A Formal Note on Topological Ordering}
+\label{sec:topological-ordering}
+
+\Cref{sec:dag-theory} asserted, without proof, that acyclicity is precisely
+the condition under which a valid execution order exists. It is worth
+making this claim mathematically precise, both because it explains
+\emph{why} \texttt{Validate\_WF()} is sufficient to guarantee an executable
+workflow, and because it grounds the engine's threaded execution model
+(\Cref{sec:execution-lifecycle}) in a standard result of graph theory.
+
+\begin{definitionbox}{Topological Order}
+A \emph{topological order} of a directed graph $G=(V,E)$ is a linear
+ordering $v_1, v_2, \dots, v_n$ of $V$ such that, for every edge
+$(v_i, v_j) \in E$, $i < j$. Equivalently, every node appears in the
+ordering only after all nodes it depends on.
+\end{definitionbox}
+
+A standard theorem of graph theory states that a directed graph admits a
+topological order \emph{if and only if} it is acyclic. The forward direction
+is immediate by contradiction: if a cycle $v_1 \to v_2 \to \dots \to v_k \to
+v_1$ existed, no linear ordering could place every predecessor before its
+successor along the entire cycle, since the cycle returns to its starting
+node. The converse can be shown constructively, by repeated removal of
+\emph{source} nodes --- nodes with no remaining incoming edges --- from the
+graph: at every step, an acyclic graph with at least one node must contain
+at least one source (otherwise, following incoming edges indefinitely would,
+in a finite graph, eventually revisit a node, producing a cycle), and
+repeatedly removing sources and appending them to the output list produces a
+valid topological order.
+
+This constructive procedure is, in fact, an algorithmic description of
+exactly what a DAG-based scheduler does at runtime: a task with no
+unsatisfied predecessor is, in DAGonStar's vocabulary, in the
+\texttt{READY} state (\Cref{sec:status-model}); the engine's threaded
+execution model effectively performs the source-removal procedure
+\emph{concurrently}, starting every \texttt{READY} task as a thread, and
+transitioning a waiting task to \texttt{READY} the moment its last
+predecessor reaches \texttt{FINISHED}. \texttt{Validate\_WF()}'s cycle
+rejection is therefore not an arbitrary safety check; it is the exact
+precondition the underlying scheduling theorem requires for \emph{any}
+valid execution order, sequential or concurrent, to exist at all.
+
+\begin{practicebox}
+This formal correspondence has a practical consequence worth internalizing:
+because topological order is generally \emph{not unique} when a DAG contains
+independent branches (as in \Cref{fig:basic-dag}, where \texttt{Berlin} and
+\texttt{Nairobi} could legally appear in either order, or interleaved), a
+DAGonStar workflow author should never write task logic that silently
+depends on one sibling task happening to run before another, unless that
+ordering is encoded as an explicit or inferred dependency. If two tasks are
+not connected by an edge, the engine offers no guarantee about their
+relative execution order or interleaving.
+\end{practicebox}
+
+\section{Granularity: How Big Should a Task Be?}
+\label{sec:task-granularity}
+
+A question every new workflow author eventually confronts, and one the
+project's documentation does not answer prescriptively, is how finely a
+computation should be decomposed into tasks. This is a genuine engineering
+trade-off, and it is worth reasoning about explicitly rather than leaving it
+to instinct.
+
+\textbf{Coarse-grained tasks} --- for instance, a single \texttt{BATCH} task
+that runs an entire multi-stage shell pipeline internally --- minimize the
+number of scratch directories, launcher scripts, and \texttt{workflow://}
+references the author must manage, and minimize the staging overhead
+incurred at each dependency edge. Their cost is a loss of the very
+properties \Cref{ch:introduction} opened by praising: traceability and
+recoverability degrade, because a failure partway through a coarse task
+provides no checkpoint boundary (\Cref{ch:lessons-05-07}) and no
+intermediate, individually inspectable scratch directory.
+
+\textbf{Fine-grained tasks} --- one task per logical step, connected by
+explicit \texttt{workflow://} edges --- maximize traceability (every
+intermediate product is a named, inspectable file in its own scratch
+directory), maximize recoverability (checkpointing can skip any individual
+completed step), and maximize the parallelism the engine can exploit
+(\Cref{sec:topological-ordering}). Their cost is increased staging overhead
+--- every edge triggers a data-movement operation
+(\Cref{sec:data-staging-architecture}) --- and a larger number of artifacts
+for a human reader to track.
+
+\begin{practicebox}
+A reasonable default, consistent with the five-stage
+prepare/run/validate/postprocess/publish pattern this book returns to
+repeatedly (\Cref{ch:external-software}), is to draw task boundaries at
+points where a scientist would naturally want to \emph{inspect} an
+intermediate product, or at points where the engine's checkpoint or
+parallelism guarantees provide a concrete operational benefit --- not at the
+boundary of every individual shell command. A model run that internally
+invokes three tightly coupled binaries with no scientifically meaningful
+intermediate product is usually one task; a model run followed by an
+independently useful post-processing step is usually two.
+\end{practicebox}
+
+\section{Chapter Summary}
+
+This chapter established the conceptual vocabulary used throughout the rest
+of the book: a workflow is a DAG of tasks; dependencies may be declared
+explicitly or inferred from data references; the engine materializes every
+task into an isolated scratch directory; and a small, uniform set of task
+types --- spanning local shells, HPC schedulers, containers, clouds, web
+requests, native Python functions, and AI completions --- share one
+dependency and staging mechanism. It further situated this design within the
+broader history of computational pipeline tools (shell scripts, build
+systems, workflow engines), gave a formal grounding for why acyclicity
+guarantees an executable schedule, and offered a first discussion of task
+granularity as a recurring design decision. \Cref{ch:architecture} now turns
+this vocabulary into a precise account of the implementation that realizes
+it.
+
+\begin{exercise}
+Using the source-removal construction of \Cref{sec:topological-ordering},
+manually compute \emph{all} valid topological orders of the DAG in
+\Cref{fig:basic-dag}. How many are there, and what does this number tell you
+about the maximum parallelism the engine could exploit if it had unlimited
+threads available?
+\end{exercise}
+
+\begin{exercise}
+Using only the vocabulary of this chapter, classify the following dependency
+as task-oriented or data-oriented, and justify your answer: ``the
+post-processing script must not run until the simulation has written its
+restart file.''
+\end{exercise}

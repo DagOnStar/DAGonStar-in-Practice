@@ -1,0 +1,360 @@
+\chapter{The \texttt{workflow://} Schema: Data-Oriented Dependency Inference}
+\label{ch:schema}
+
+The \texttt{workflow://} schema is DAGonStar's mechanism for expressing
+file-level dependencies between tasks without requiring the workflow author
+to state them explicitly. This chapter gives the schema a complete, formal
+treatment, because it is the single mechanism that later unifies file-based
+scientific software (\Cref{ch:external-software}), LLM tasks
+(\Cref{ch:llm-tasks}), Web tasks (\Cref{ch:web-tasks}), and Native Python
+tasks (\Cref{ch:native-tasks}) under one dependency model.
+
+\section{Purpose}
+
+The schema lets a command refer to a file produced by another task. DAGonStar
+infers the dependency from that reference and stages the file before the
+consumer task runs --- turning a textual reference inside a shell command (or
+JSON request, or function-argument mapping) into a structural edge of the
+workflow DAG.
+
+\section{Formal Shape}
+
+\begin{definitionbox}{\texttt{workflow://} URI Grammar}
+\begin{lstlisting}[basicstyle=\ttfamily\small, frame=none]
+workflow://<workflow-name>/<task-name>/<path-inside-task-working-directory>
+\end{lstlisting}
+For references inside the \emph{same} workflow, \texttt{<workflow-name>} may
+be omitted, yielding the common shorthand:
+\begin{lstlisting}[basicstyle=\ttfamily\small, frame=none]
+workflow:///<task-name>/<path-inside-task-working-directory>
+\end{lstlisting}
+\end{definitionbox}
+
+\begin{lstlisting}[caption={Representative \texttt{workflow://} references.}]
+workflow:///A/output/f1.txt
+workflow://Forecast/preprocess/out/forcing.nc
+workflow://Observations/download/data/profile.csv
+\end{lstlisting}
+
+\subsection{Components}
+
+\paragraph{Scheme.} The literal scheme \texttt{workflow://}, defined in the
+implementation as the class constant \texttt{Workflow.SCHEMA = "workflow://"}.
+
+\paragraph{Workflow name.} Identifies the \emph{producer} workflow. Optional
+for references inside the current workflow (\texttt{workflow:///producer/output.dat}),
+mandatory for cross-workflow references
+(\texttt{workflow://OtherWorkflow/producer/output.dat}; see
+\Cref{ch:meta-async} for meta-workflow composition).
+
+\paragraph{Task name.} The producer task's \texttt{name} attribute, e.g.\
+\texttt{prepare} in \texttt{workflow:///prepare/input.nc}.
+
+\paragraph{Path.} The remaining path segment, interpreted \emph{relative to
+the producer task's working directory}. For example,
+\texttt{workflow:///prepare/output/result.nc} resolves to
+\texttt{<prepare working directory>/output/result.nc}.
+
+\section{Dependency Inference Algorithm}
+
+When \texttt{Workflow.make\_dependencies()} is called, every task runs its
+\texttt{pre\_run()} method. \texttt{pre\_run()} scans the task's command
+string for \texttt{workflow://} occurrences, and, for each occurrence:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item parses the workflow name, task name, and file path;
+  \item finds the producer task (locally, or via the optional DAGon service
+    for cross-workflow references when no local match exists);
+  \item appends the consumer task to the producer's \texttt{nexts};
+  \item appends the producer task to the consumer's \texttt{prevs};
+  \item increments the producer's \texttt{reference\_count}.
+\end{enumerate}
+
+Consequently, the single-line command
+
+\begin{lstlisting}
+DagonTask(TaskType.BATCH, "B", "cat workflow:///A/output/f1.txt")
+\end{lstlisting}
+
+deterministically creates the graph edge $A \to B$, with no separate
+\texttt{add\_dependency\_to()} call required.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=14mm and 16mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=26mm, minimum height=10mm, font=\sffamily\small,
+    align=center, text width=30mm},
+  note/.style={font=\sffamily\scriptsize, text width=44mm, align=left},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (A) {Task A\\ \texttt{output/f1.txt}};
+  \node[task, right=of A] (B) {Task B\\ \texttt{cat workflow:///A/...}};
+  \draw[arr] (A) -- node[above,font=\sffamily\scriptsize]{parsed by \texttt{pre\_run()}} (B);
+  \node[note, below=2mm of A, xshift=8mm] {1. \texttt{make\_dependencies()} scans B's command\\
+    2. finds reference to A\\
+    3. records $A \to B$ in \texttt{prevs}/\texttt{nexts}\\
+    4. stages \texttt{f1.txt} into B's \texttt{.dagon/inputs/}\\
+    5. rewrites B's command to use the staged path};
+\end{tikzpicture}
+\caption{Dependency inference and command rewriting triggered by a single
+\texttt{workflow://} reference.}
+\label{fig:schema-resolution}
+\end{figure}
+
+\section{Command Rewriting}
+
+Before execution, \texttt{Task.pre\_process\_command()} stages the referenced
+file and rewrites the command body: the producer reference is replaced by a
+path inside the consumer task's working directory, under
+
+\begin{lstlisting}[basicstyle=\ttfamily\small, frame=none]
+.dagon/inputs/<workflow-name>/<task-name>/...
+\end{lstlisting}
+
+This lets the external program --- which may be an arbitrary, unmodified
+scientific executable --- read what it sees as an ordinary, local filesystem
+path, with no awareness that the file originated in a sibling task's scratch
+directory.
+
+\section{Whitespace Boundary Rule}
+\label{sec:whitespace-rule}
+
+\begin{cautionbox}
+The current parser scans from \texttt{workflow://} until the next whitespace
+character or the end of the command string. Paths containing spaces are
+therefore \emph{not} safely supported in \texttt{workflow://} references.
+
+\textbf{Recommended:} \texttt{workflow:///A/output/result.nc}
+
+\textbf{Avoid:} \texttt{workflow:///A/output/result with spaces.nc}
+\end{cautionbox}
+
+This constraint should be treated as a hard naming rule for any scientific
+data product that may ever be referenced through the schema: avoid spaces in
+output file and directory names produced by any task.
+
+\section{Same-Workflow and Cross-Workflow Examples}
+
+\begin{lstlisting}[caption={Same-workflow producer/consumer pair.}]
+task_a = DagonTask(TaskType.BATCH, "A", "mkdir -p output; echo data > output/f1.txt")
+task_b = DagonTask(TaskType.BATCH, "B", "cat workflow:///A/output/f1.txt > copy.txt")
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Cross-workflow reference, used by meta-workflows.}]
+task = DagonTask(
+    TaskType.BATCH,
+    "run_model",
+    "cat workflow://Observations/collect/out/forcing.txt > model_input.txt",
+)
+\end{lstlisting}
+
+Cross-workflow behavior underlies the meta-workflow and transversal patterns
+developed in \Cref{ch:meta-async}, where it may involve \texttt{DAG\_TPS} or
+the optional DAGon service.
+
+\section{Interaction with Data Staging}
+
+The schema identifies \emph{what} must be staged; \emph{how} it is staged is
+controlled by the workflow's or task's data mover
+(\Cref{sec:data-staging-architecture}): \texttt{COPY}, \texttt{LINK},
+\texttt{SCP}, \texttt{GRIDFTP}, or \texttt{SKYCDS}. For local workflows,
+\texttt{COPY} is the safest default; specialized movers require external
+services or remote configuration.
+
+\section{Extension to Non-File-Based Tasks}
+
+A defining property of the engine's later AI--HPC integration is that the
+\texttt{workflow://} schema is \emph{not} restricted to shell commands.
+\texttt{TaskType.LLM} parses \texttt{workflow://} values in both its JSON
+prompt and its \texttt{input\_files} mapping, infers the producer dependency,
+and copies local UTF-8 text inputs into its \texttt{.dagon/inputs} folder
+before including their content in the API request body
+(\Cref{ch:llm-tasks}). \texttt{TaskType.WEB} similarly parses recursive
+\texttt{workflow://} values inside an HTTP request specification
+(\Cref{ch:web-tasks}), and \texttt{TaskType.NATIVE} accepts them as Python
+function-argument bindings (\Cref{ch:native-tasks}). The schema is, in this
+precise sense, the engine's \emph{universal} dependency language.
+
+\section{Best Practices}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Use stable task names; the schema and checkpointing both key on them.
+  \item Use simple path names without spaces (\Cref{sec:whitespace-rule}).
+  \item Write producer outputs under explicit, named directories such as
+    \texttt{output/}.
+  \item Reference exact files rather than broad directory assumptions where
+    possible.
+  \item Always call \texttt{workflow.make\_dependencies()} before
+    \texttt{workflow.run()} when the dependency graph should be inspected or
+    validated ahead of execution --- although, as \Cref{ch:meta-async} notes,
+    \texttt{run()} and \texttt{launch()} build it automatically if it has
+    not already been built.
+  \item Keep cross-workflow references rare and well documented.
+\end{itemize}
+
+\section{Common Errors}
+
+\begin{description}[leftmargin=1.8em,style=nextline]
+  \item[Missing producer task] If a referenced task is not found and the
+    DAGon service is disabled, DAGonStar raises a connection/service-related
+    error, because it cannot resolve the reference externally.
+  \item[Dependency cycle] If \texttt{workflow://} references create a cycle,
+    graph validation fails (\Cref{sec:dag-theory}).
+  \item[Wrong path inside producer task] The dependency may be structurally
+    valid, yet staging or downstream execution fails if the producer did not
+    actually create the referenced file --- a reminder that the schema
+    expresses \emph{intended} data lineage, not a guarantee of file
+    existence.
+  \item[Path contains spaces] The parser uses whitespace as a token
+    boundary; see \Cref{sec:whitespace-rule}.
+\end{description}
+
+\section{The Schema as a Naming Scheme: A Formal View}
+\label{sec:schema-formal}
+
+It is useful to read the \texttt{workflow://} grammar of
+\Cref{ch:schema} through the lens of \emph{naming schemes} in distributed
+systems, a perspective that clarifies precisely what guarantee the schema
+does, and does not, provide.
+
+A naming scheme maps names --- here, \texttt{workflow://} URIs --- to
+resources --- here, files inside task scratch directories. Two properties
+are commonly demanded of a useful naming scheme: \emph{location
+transparency}, meaning a name does not encode the physical location of the
+resource it refers to, only its logical identity; and \emph{resolvability},
+meaning the system can deterministically map a name to a current physical
+location. The \texttt{workflow://} schema satisfies location transparency by
+construction: a reference such as \texttt{workflow:///prepare/output/result.nc}
+says nothing about \emph{where} \texttt{prepare}'s scratch directory
+physically resides --- under \texttt{/tmp/}, under a configured alternate
+\texttt{scratch\_dir\_base} (\Cref{ch:configuration}), or, for a remote task,
+on a different host entirely. The mapping from this logical name to a
+physical path is resolved at \texttt{pre\_process\_command()} time
+(\Cref{sec:execution-lifecycle}), using only information already present in
+the in-memory task graph: the producer task's recorded \texttt{working\_dir}.
+
+This formal framing also clarifies why the schema's resolvability is
+\emph{intra-workflow-execution} only: a \texttt{workflow://} reference is
+meaningful only in the context of a graph that DAGonStar itself constructed
+and whose tasks' working directories it itself tracked. A reference copied
+out of one workflow run's source code and pasted, unmodified, into an
+unrelated script with no corresponding producer task would not resolve to
+anything --- the name carries no inherent physical meaning outside the
+dependency graph that gives it one. This is, again, exactly the
+\emph{Missing producer task} failure mode already catalogued in
+\Cref{ch:schema}'s ``Common Errors'' section, now understood as a structural
+consequence of how the naming scheme is resolved rather than as an
+arbitrary implementation limitation.
+
+\section{Comparison with Alternative Dependency-Expression Mechanisms}
+
+Having developed the schema's mechanics in full, it is worth comparing it
+explicitly against the two dependency-expression alternatives a workflow
+engine could instead have chosen, to clarify what specific trade-off
+DAGonStar's designers accepted.
+
+\textbf{Configuration-file dependency declaration} --- in which a separate
+manifest (a YAML or JSON file, say) lists, for every task, the names of its
+predecessors --- decouples the dependency declaration from the command
+string entirely. This has the advantage of being inspectable by tooling that
+does not parse arbitrary shell syntax, but it reintroduces precisely the
+synchronization risk \Cref{sec:task-vs-data} identified for explicit,
+asserted dependencies: a manifest entry and the command that actually
+consumes a file can silently drift apart, because nothing forces the two to
+agree. \texttt{workflow://} dependency inference avoids this drift
+structurally, by deriving the dependency from the very same string the
+consumer's command will execute.
+
+\textbf{Implicit, timestamp-based dependency inference} --- the strategy
+classical build systems such as \texttt{make} use, inferring that a target
+is stale if any prerequisite file's modification time is newer --- requires
+no explicit reference syntax at all, but it depends on a shared, reliable
+filesystem clock and breaks down precisely in the heterogeneous,
+multi-host, multi-backend setting (\Cref{ch:backends}) DAGonStar is designed
+for: a remote task's output file's modification timestamp, as observed
+through SSH, may not be directly comparable to a local task's, especially
+across hosts with imperfectly synchronized clocks. \texttt{workflow://}
+inference sidesteps the clock-synchronization problem entirely, because it
+never inspects timestamps; the dependency is structural, derived once at
+\texttt{make\_dependencies()} time, and the engine's own
+\texttt{Status} state machine (\Cref{sec:status-model}), not the filesystem
+clock, is the sole authority on whether a producer has actually finished.
+
+\begin{practicebox}
+The schema's chosen strategy --- embedding the dependency reference directly
+inside the artifact (command, prompt, or request specification) that
+consumes it --- trades a small amount of syntactic novelty (a workflow
+author must learn the \texttt{workflow://} grammar) for the elimination of
+an entire class of synchronization bugs that both configuration-file and
+timestamp-based alternatives are structurally prone to. This trade-off is
+visible again, in a different guise, every time \Cref{ch:llm-tasks,ch:web-tasks,ch:native-tasks}
+show the same embedded-reference strategy extended into a JSON prompt, an
+HTTP request specification, and a Python argument-binding dictionary,
+respectively.
+\end{practicebox}
+
+\section{Provenance Beyond the Single Reference}
+
+A single \texttt{workflow://} reference establishes one edge of a
+provenance graph; it is worth being explicit about what larger structure
+emerges once a realistic workflow contains many such references, because
+this larger structure is the actual scientific deliverable a DAGonStar
+workflow produces, alongside its numerical results.
+
+Define the \emph{provenance graph} of a completed workflow run as the
+directed graph whose nodes are the workflow's tasks, annotated with their
+recorded \texttt{working\_dir}, generated \texttt{.dagon/launcher.sh}
+(\Cref{ch:lessons-03-04}), and final \texttt{Status}, and whose edges are
+exactly the dependencies \texttt{make\_dependencies()} constructed --- the
+same structure already developed as the dependency DAG, but now read
+\emph{retrospectively}, after execution, as a historical record rather than
+a forward scheduling plan. Because every edge in this graph corresponds to
+an actual, staged file copy (under the chosen \texttt{DataMover}) and a
+rewritten command, the provenance graph is, in a precise sense, more
+complete than the kind of provenance a researcher typically reconstructs by
+hand from a shell history or a lab notebook: it records not just \emph{that}
+one step followed another, but the \emph{exact} file each step consumed,
+the exact path it was staged to, and the exact, fully-resolved command that
+ran.
+
+\begin{example}
+Consider a three-task chain \texttt{download} $\to$ \texttt{preprocess}
+$\to$ \texttt{simulate}, of the kind \Cref{ch:lessons-05-07} discusses in
+the context of checkpointing. After a successful run, a researcher who
+receives only the three scratch directories --- without the original Python
+source --- can nonetheless reconstruct the full provenance chain by reading
+each task's \texttt{.dagon/launcher.sh} in turn: \texttt{simulate}'s
+launcher will reference a path under
+\texttt{.dagon/inputs/<workflow>/preprocess/...}, which can be traced back
+to \texttt{preprocess}'s own output directory, and so on. This
+reconstructibility-from-artifacts-alone property is a direct, mechanical
+consequence of the command-rewriting behavior described in \Cref{ch:schema},
+and is part of why this book treats the generated launcher script, first
+introduced in \Cref{ch:lessons-03-04}, as a first-class scientific
+artifact in its own right, not merely an implementation detail.
+\end{example}
+
+\section{Chapter Summary}
+
+The \texttt{workflow://} schema converts a textual file reference embedded in
+a task's command, prompt, request specification, or argument binding into a
+structural DAG edge, a staged local file, and a rewritten, self-contained
+command. It is the single dependency language shared by every execution
+backend covered in this book, from a local \texttt{BATCH} task in
+\Cref{ch:lessons-01-02} to an \texttt{LLM} task in \Cref{ch:llm-tasks}. This
+chapter additionally framed the schema formally as a location-transparent
+naming scheme, compared it against configuration-file and timestamp-based
+dependency-inference alternatives, and showed how a workflow's accumulated
+\texttt{workflow://} references constitute a reconstructible provenance
+graph that survives independently of the original source code.
+
+\begin{exercise}
+Using the provenance-graph notion of this chapter's final section, describe
+precisely what information would be \emph{lost}, and what would still be
+recoverable, if a workflow author replaced every \texttt{workflow://}
+reference in a five-task pipeline with explicit \texttt{add\_dependency\_to()}
+calls plus hard-coded absolute paths copied by hand from a previous run's
+scratch directories. Relate your answer to \Cref{sec:task-vs-data}.
+\end{exercise}

@@ -1,0 +1,246 @@
+\chapter{Checkpoint Semantics Reference}
+\label{app:checkpoints}
+
+This appendix collects, in full, the checkpoint semantics introduced in
+\Cref{ch:lessons-05-07}, for use as a standing reference when designing
+resumable, long-running scientific workflows.
+
+\section{Checkpointing as a Special Case of the Provenance Graph}
+
+Before working through the mechanics, it is worth connecting checkpoint
+semantics explicitly to the provenance-graph concept developed in
+\Cref{ch:schema}. A checkpoint file, in the precise sense developed there,
+is a \emph{partial, persisted snapshot} of the provenance graph's node
+annotations --- specifically, the \texttt{working\_dir} and final exit
+\texttt{code} of every task that has completed at least once --- written to
+a location (the checkpoint JSON file) that survives independently of the
+Python process that produced it. This framing clarifies precisely what a
+checkpoint file does and does not capture: it captures exactly the same two
+facts \Cref{ch:lessons-03-04}'s debugging procedure already treats as
+foundational --- where a task's output lives, and whether the task
+succeeded --- and nothing more. It does not, in particular, capture the
+\texttt{launcher.sh} content itself, which is why, as the limitations
+section below reiterates, checkpoint reuse cannot by itself detect that a
+task's \emph{command} changed between the run that produced the checkpoint
+entry and the run attempting to reuse it.
+
+\section{What Checkpointing Records}
+
+When a \texttt{Workflow} is created with \texttt{checkpoint\_file}, DAGonStar
+writes a JSON file containing: the workflow scratch base; per-task working
+directories; workflow name; task name; and the task exit code after
+execution.
+
+\begin{lstlisting}[caption={Representative checkpoint JSON shape.}]
+{
+  "_scratch_dir": "/tmp/",
+  "Experiment.A": {
+    "working_dir": "/tmp/1710000000000-A",
+    "workflow": "Experiment",
+    "name": "A",
+    "code": 0
+  }
+}
+\end{lstlisting}
+
+\section{Creating and Resuming a Checkpointed Workflow}
+
+\begin{lstlisting}[caption={Creation.}]
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+workflow = Workflow("Experiment", checkpoint_file="checkpoint.json")
+
+task = DagonTask(TaskType.BATCH, "A", "echo result > result.txt")
+workflow.add_task(task)
+workflow.make_dependencies()
+workflow.run()
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Resumption.}]
+workflow = Workflow("Experiment", checkpoint_file="checkpoint.json")
+task = DagonTask(TaskType.BATCH, "A", "echo result > result.txt")
+workflow.add_task(task)
+workflow.make_dependencies()
+workflow.run(resume_checkpoint_file="checkpoint.json")
+\end{lstlisting}
+
+If the checkpoint records \texttt{code: 0} for \texttt{Experiment.A} and the
+recorded working directory still exists, the task can be treated as already
+complete and is skipped on the resumed run.
+
+\section{Task Identity}
+
+Checkpoint keys are built from \texttt{<workflow-name>.<task-name>}. Stable
+workflow and task names are therefore essential: renaming a task is, from
+the checkpoint system's perspective, indistinguishable from introducing an
+entirely new task with no recorded history.
+
+This naming-stability requirement deserves a slightly fuller treatment than
+a single warning sentence, since it interacts with ordinary software
+maintenance in a way that is easy to overlook. As a workflow's Python source
+evolves over the lifetime of a research project --- task names refactored
+for clarity, a workflow renamed to reflect a renamed project --- every such
+rename silently orphans the corresponding checkpoint entries: the old key
+remains in the checkpoint JSON, referring to a working directory that may
+still exist on disk, while the renamed task generates a new key with no
+checkpoint history of its own. This is not a bug; it follows directly from
+the dictionary-key-based identity scheme described above. It does mean,
+however, that a workflow author renaming tasks in an actively used,
+checkpointed workflow should treat the rename as equivalent, from a
+checkpoint-continuity perspective, to discarding all prior checkpoint
+history for the renamed tasks, and plan accordingly --- for instance, by
+completing any in-flight, expensive run under the old names before applying
+the rename, rather than renaming mid-run and hoping for seamless resumption.
+
+\section{Working Directory Persistence}
+
+Checkpoint reuse requires the recorded working directory to exist. If
+scratch directories are deleted, moved, or garbage-collected, checkpoint
+reuse cannot recover those task outputs. For long-running scientific
+workflows, scratch directories should be placed on storage with a retention
+policy appropriate to the experiment's expected lifetime.
+
+\section{Checkpointing and Dataflow}
+
+Checkpointing is most valuable for dataflow workflows whose upstream tasks
+produce large intermediate files. Given the chain
+
+\begin{lstlisting}[basicstyle=\ttfamily\small, frame=none]
+download -> preprocess -> simulate -> postprocess
+\end{lstlisting}
+
+if \texttt{simulate} fails, a later run may reuse \texttt{download} and
+\texttt{preprocess} if their working directories and checkpoint entries
+remain valid --- avoiding, potentially, hours of redundant data acquisition
+and preprocessing for a single failed simulation attempt.
+
+This four-stage example is worth re-examining quantitatively, building on
+\Cref{ch:lessons-05-07}'s staging-cost discussion: the value checkpointing
+delivers in this scenario is directly proportional to the cost of the
+stages it allows a researcher to \emph{skip} on resumption, relative to the
+cost of the stage that actually failed. If \texttt{download} and
+\texttt{preprocess} together consume four hours of wall-clock time and
+\texttt{simulate} consumes thirty minutes before failing, checkpoint reuse
+converts a worst-case four-and-a-half-hour recovery cost into a thirty-
+minute one --- a substantial, quantifiable return on the comparatively
+small overhead of supplying a \texttt{checkpoint\_file} argument. The same
+calculation, run in reverse, also clarifies when checkpointing delivers
+little practical benefit: a workflow whose every stage is roughly equally
+cheap gains comparatively little from checkpoint reuse, since even a full
+restart from scratch is itself inexpensive.
+
+\section{Explicit Checkpoint Tasks}
+
+\texttt{TaskType.CHECKPOINT} maps to \texttt{dagon.checkpoint.Checkpoint}.
+This task type is part of the implementation for explicit checkpoint
+behavior; the workflow-level \texttt{checkpoint\_file} mechanism described
+above remains the primary, user-facing mechanism for recording and resuming
+task metadata.
+
+\section{Remote, Docker, and Cloud Checkpointing}
+
+Remote checkpoint reuse checks for the existence of the recorded directory
+on the remote host through the task's SSH connection, which means:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item the same host must be reachable;
+  \item credentials must still work;
+  \item the remote scratch directory must still exist;
+  \item paths must be valid on the remote filesystem.
+\end{itemize}
+
+\begin{cautionbox}
+Docker and cloud task checkpointing depends on the persistence of the host
+scratch directory and, for cloud tasks, on the persistence or
+reconstruction of the remote execution environment. Do not assume a
+terminated cloud instance preserves local scratch data unless it was
+explicitly written to persistent storage.
+\end{cautionbox}
+
+These three additional preconditions --- host reachability, credential
+validity, and remote filesystem persistence --- compose directly with the
+backend-specific operational considerations already developed in
+\Cref{ch:backends}: a remote or Slurm-scheduled task's queueing and latency
+costs (already discussed there) determine how \emph{expensive} a failure
+partway through that task is, while this section's preconditions determine
+whether checkpoint reuse can actually \emph{recover} from that failure
+without re-incurring those costs. A workflow author relying on checkpoint
+reuse for a remote or cloud-backed stage should verify both sets of
+considerations together, not in isolation.
+
+\section{Scientific Usage Pattern}
+
+For expensive workflows, the documentation recommends the following
+seven-step discipline:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item Use a stable workflow name.
+  \item Use stable task names.
+  \item Set \texttt{checkpoint\_file}.
+  \item Set a scratch base with enough storage.
+  \item Preserve the checkpoint JSON with experiment metadata.
+  \item Preserve or archive task working directories needed for reuse.
+  \item On rerun, use \texttt{resume\_checkpoint\_file}.
+\end{enumerate}
+
+\section{Limitations and Cautions}
+
+\begin{cautionbox}
+\begin{itemize}[leftmargin=1.4em]
+  \item Checkpoints record task \emph{success} and working directory, not
+    full semantic equivalence of code, inputs, or parameters.
+  \item If a command changes but the task name and previous success remain,
+    checkpoint reuse may incorrectly skip recomputation.
+  \item For rigorous scientific reproducibility, store code version,
+    configuration, input checksums, and software environment \emph{alongside}
+    the checkpoint file, not only inside it.
+  \item Garbage collection or manual cleanup can invalidate checkpoint
+    reuse.
+\end{itemize}
+\end{cautionbox}
+
+The first two items of this list deserve to be read together, since they
+describe the same underlying limitation from two angles: a checkpoint
+entry's identity is purely nominal (task name) and purely behavioral
+(recorded exit code), never \emph{content-based}. A content-based scheme
+--- recording, say, a hash of the task's fully resolved command, as
+captured in \texttt{launcher.sh} --- would in principle detect a changed
+command automatically and correctly invalidate the corresponding checkpoint
+entry, at the cost of additional implementation complexity the current,
+simpler name-and-status scheme avoids. A workflow author who needs this
+stronger guarantee today must provide it manually, by following the fifth
+bullet's recommendation to preserve code version and configuration
+alongside the checkpoint file, and by manually deleting or ignoring stale
+checkpoint entries whenever a task's command is deliberately changed.
+
+\section{Verification}
+
+\begin{lstlisting}[style=bash]
+cd examples/dataflow/batch
+python dataflow-checkpoint-demo.py
+\end{lstlisting}
+
+Then inspect the generated checkpoint file named by the example script. A
+minimal custom test illustrating two successive resumed runs:
+
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+def build():
+    workflow = Workflow("CheckpointDemo", checkpoint_file="checkpoint.json")
+    task = DagonTask(TaskType.BATCH, "A", "echo data > data.txt")
+    workflow.add_task(task)
+    workflow.make_dependencies()
+    return workflow
+
+
+build().run(resume_checkpoint_file="checkpoint.json")
+build().run(resume_checkpoint_file="checkpoint.json")
+\end{lstlisting}
+
+The second run can reuse the completed task if the recorded directory
+remains on disk.

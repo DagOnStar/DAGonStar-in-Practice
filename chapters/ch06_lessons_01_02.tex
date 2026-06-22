@@ -1,0 +1,233 @@
+\chapter{Local Workflows and Explicit Dependencies}
+\label{ch:lessons-01-02}
+
+This chapter, and the two that follow it, present Lessons~1 through~7 of the
+project's tutorial sequence in full, with the discursive expansion proper to
+a textbook. Each lesson retains its original pedagogical scaffold ---
+objective, concept, code, expected behavior, verification, scientific
+practice note --- inside a numbered \emph{Lesson box}, and is followed by
+additional theoretical commentary connecting it to the architecture developed
+in Part~I.
+
+\begin{lessonbox}{Lesson 1 --- Create a Local Workflow}
+\textbf{Objective.} Create and run the smallest useful DAGonStar workflow.
+
+\textbf{Concept.} A \texttt{Workflow} owns tasks. A \texttt{DagonTask}
+factory creates task instances. A local batch task executes a shell command
+on the same machine.
+
+\textbf{Code} (\texttt{lesson\_01.py}):
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+if __name__ == "__main__":
+    workflow = Workflow("Lesson01")
+    task = DagonTask(TaskType.BATCH, "hello", "echo 'hello from DAGonStar' > hello.txt")
+
+    workflow.add_task(task)
+    workflow.make_dependencies()
+    workflow.run()
+\end{lstlisting}
+
+\textbf{Run:}
+\begin{lstlisting}[style=bash]
+cp dagon.ini.sample dagon.ini
+python lesson_01.py
+\end{lstlisting}
+
+\textbf{Expected behavior.} DAGonStar creates a scratch directory under the
+configured \texttt{scratch\_dir\_base}, executes the task, and writes
+\texttt{hello.txt} in that task's directory.
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+find /tmp -maxdepth 1 -type d -name '*-hello' | tail -n 1
+ls /tmp/*-hello
+\end{lstlisting}
+
+\textbf{Scientific practice note.} Even a one-task workflow is useful when
+the task has scientific meaning, such as downloading observations or
+generating a reproducible input dataset.
+\end{lessonbox}
+
+\section{Discussion: The Smallest Useful Workflow}
+
+Lesson~1 is deliberately trivial, but it already exercises the complete
+execution lifecycle of \Cref{sec:execution-lifecycle}: a \texttt{Workflow} is
+constructed, a single \texttt{BATCH} task is added, \texttt{make\_dependencies()}
+parses its (dependency-free) command, \texttt{Validate\_WF()} trivially
+accepts the single-node graph, and \texttt{run()} starts, executes, and
+completes the one task thread. The pedagogical purpose of beginning here ---
+rather than with a multi-task DAG --- is to let the scratch-directory and
+\texttt{.dagon/} mechanism (formalized in \Cref{ch:lessons-03-04}) be observed
+in isolation, before dependency resolution is introduced as a second source
+of complexity.
+
+\begin{lessonbox}{Lesson 2 --- Add Explicit Task Dependencies}
+\textbf{Objective.} Create a workflow where tasks execute in a controlled
+order.
+
+\textbf{Concept.} Use \texttt{consumer.add\_dependency\_to(producer)} when one
+task must wait for another.
+
+\textbf{Code} (\texttt{lesson\_02.py}):
+\begin{lstlisting}
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+if __name__ == "__main__":
+    workflow = Workflow("Lesson02")
+
+    prepare = DagonTask(TaskType.BATCH, "prepare", "echo prepared > prepared.txt")
+    simulate = DagonTask(TaskType.BATCH, "simulate", "echo simulated > simulated.txt")
+    summarize = DagonTask(TaskType.BATCH, "summarize", "echo summarized > summarized.txt")
+
+    workflow.add_task(prepare)
+    workflow.add_task(simulate)
+    workflow.add_task(summarize)
+
+    simulate.add_dependency_to(prepare)
+    summarize.add_dependency_to(simulate)
+
+    workflow.Validate_WF()
+    workflow.run()
+\end{lstlisting}
+
+\textbf{Run:}
+\begin{lstlisting}[style=bash]
+python lesson_02.py
+\end{lstlisting}
+
+\textbf{Expected behavior.} The three tasks run in the order:
+\texttt{prepare} $\to$ \texttt{simulate} $\to$ \texttt{summarize}.
+
+\textbf{Verify:}
+\begin{lstlisting}[style=bash]
+find /tmp -maxdepth 1 -type d \( -name '*-prepare' -o -name '*-simulate' -o -name '*-summarize' \)
+\end{lstlisting}
+
+\textbf{Scientific practice note.} Explicit dependencies are best when the
+relation is conceptual or procedural, for example: ``validate parameters
+before launching the model.''
+\end{lessonbox}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=18mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=30mm, minimum height=10mm, font=\sffamily\small},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (P) {prepare};
+  \node[task, right=of P] (S) {simulate};
+  \node[task, right=of S] (U) {summarize};
+  \draw[arr] (P) -- node[above,font=\sffamily\scriptsize]{\texttt{add\_dependency\_to}} (S);
+  \draw[arr] (S) -- node[above,font=\sffamily\scriptsize]{\texttt{add\_dependency\_to}} (U);
+\end{tikzpicture}
+\caption{The strictly linear, explicitly-declared dependency chain of
+Lesson~2. No file is referenced between tasks; the ordering encodes a
+procedural, not a data, relationship.}
+\label{fig:lesson02-chain}
+\end{figure}
+
+\section{Discussion: Explicit versus Inferred Ordering}
+
+Lesson~2 isolates the \emph{explicit} half of the task-oriented/data-oriented
+distinction introduced in \Cref{sec:task-vs-data}. Note carefully what this
+example does \emph{not} do: none of the three tasks reads a file produced by
+another. The ordering \texttt{prepare} $\to$ \texttt{simulate} $\to$
+\texttt{summarize} exists purely because the workflow author asserted it with
+\texttt{add\_dependency\_to()}. This is the correct modeling choice whenever
+the real-world constraint is procedural rather than a literal data
+dependency --- the canonical example given in the documentation is
+\emph{``validate parameters before launching the model''}: there may be no
+file the validation step hands to the model step, yet the ordering is still
+scientifically mandatory.
+
+The call to \texttt{workflow.Validate\_WF()} immediately after building the
+dependency graph, but before \texttt{run()}, is good practice independent of
+whether dependencies are explicit or inferred: it surfaces a cycle
+(\Cref{sec:dag-theory}) as an explicit, early modeling error rather than as a
+runtime deadlock.
+
+\section{Mixing Explicit and Inferred Dependencies in One Workflow}
+
+Lessons~1 and~2 are presented separately for pedagogical clarity, but it is
+worth being explicit, before moving on, that nothing in the engine restricts
+a single workflow to using only one dependency-expression style. A realistic
+pipeline routinely mixes both: a \texttt{validate\_parameters} task that
+gates \texttt{run\_model} through an explicit \texttt{add\_dependency\_to()}
+call (because the relationship is procedural, as Lesson~2 demonstrates), and
+a \texttt{run\_model} task that simultaneously consumes
+\texttt{prepare\_input}'s output file through a \texttt{workflow://}
+reference (because that relationship is a genuine data dependency, as
+Lesson~3 will demonstrate in the next chapter).
+
+\begin{example}
+Consider a workflow with four tasks: \texttt{check\_license} (verifies that a
+required model license file is present and current --- a procedural
+precondition with no file product consumed by \texttt{run\_model});
+\texttt{prepare\_input} (writes \texttt{forcing.nc}); \texttt{run\_model}
+(consumes \texttt{forcing.nc} via \texttt{workflow://} \emph{and} must wait
+for \texttt{check\_license}, expressed via \texttt{add\_dependency\_to()});
+and \texttt{archive} (consumes \texttt{run\_model}'s output via
+\texttt{workflow://}). The resulting dependency graph has three edges of two
+different kinds: one explicit ($\texttt{check\_license} \to
+\texttt{run\_model}$) and two inferred ($\texttt{prepare\_input} \to
+\texttt{run\_model}$, $\texttt{run\_model} \to \texttt{archive}$). Both
+kinds are recorded identically in \texttt{prevs}/\texttt{nexts}
+(\Cref{ch:architecture}) once \texttt{make\_dependencies()} has run, and
+\texttt{Validate\_WF()} treats the resulting four-node graph as a single,
+uniform DAG regardless of how each edge was created.
+\end{example}
+
+\begin{practicebox}
+A useful authoring discipline, consistent with the modeling guidance of
+\Cref{sec:task-vs-data}: when writing a new task, first ask whether the task
+\emph{reads a file} that another task produces. If so, express that
+dependency through \texttt{workflow://} and let it be inferred --- doing so
+automatically keeps the declared dependency synchronized with the actual
+data the command consumes, as \Cref{ch:schema} discusses at length. Reserve
+explicit \texttt{add\_dependency\_to()} calls for the residual cases where no
+file changes hands, but an ordering constraint is nonetheless real.
+\end{practicebox}
+
+\section{Validating the Graph Without Running It}
+
+Lesson~2's use of \texttt{Validate\_WF()} before \texttt{run()} previews a
+pattern this book will return to repeatedly in Part~II, under the name
+\emph{local structural verification} (\Cref{ch:backends}): separating the
+act of \emph{constructing and validating} a dependency graph from the act of
+\emph{executing} it. This separation has a concrete pedagogical and
+debugging benefit even at this early stage of the tutorial sequence. A
+workflow author uncertain whether a hand-edited set of
+\texttt{add\_dependency\_to()} calls has accidentally introduced a cycle can
+call \texttt{make\_dependencies()} followed by \texttt{Validate\_WF()} alone,
+inspect the raised exception (or its absence) and the resulting
+\texttt{prevs}/\texttt{nexts} lists on each task object, and only then decide
+whether to proceed to \texttt{run()} --- without incurring the cost, or the
+side effects, of actually executing any task's command. For workflows whose
+tasks have expensive or non-idempotent side effects (a remote job
+submission, a billable cloud operation, an API call with rate limits), this
+validate-before-run discipline is not merely convenient but essential.
+
+\begin{exercise}
+Rewrite Lesson~2 so that \texttt{simulate} actually consumes the file written
+by \texttt{prepare} (rename \texttt{prepared.txt} to a path inside an
+\texttt{output/} subdirectory), and replace the explicit
+\texttt{add\_dependency\_to()} calls with \texttt{workflow://} references.
+Confirm that \texttt{workflow.make\_dependencies()} reconstructs the same
+linear order automatically. This exercise previews \Cref{ch:lessons-03-04}.
+\end{exercise}
+
+\begin{exercise}
+Extend the four-task example of this section's worked example into a
+runnable DAGonStar script. Verify, using
+\texttt{task.prevs}/\texttt{task.nexts} inspection as suggested above, that
+the engine records exactly three dependency edges, and confirm that
+\texttt{Validate\_WF()} accepts the graph without raising an exception.
+\end{exercise}

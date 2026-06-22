@@ -1,0 +1,500 @@
+\chapter{The DAGonStar Computational Model and Architecture}
+\label{ch:architecture}
+
+This chapter develops, in precise and implementation-faithful terms, the
+internal architecture introduced informally in \Cref{ch:introduction}. The
+DAGonStar documentation states a strict principle that this chapter respects
+throughout: \textit{``documentation must remain consistent with the software
+in this repository''} --- this is a descriptive account of the current
+implementation, not an aspirational design document.
+
+\section{Package Layout}
+
+The engine's source tree is organized as follows:
+
+\begin{lstlisting}[language=bash, caption={\texttt{dagon/} package layout.}]
+dagon/
+  __init__.py                 Workflow, Status, DataMover, Stager
+  task.py                     TaskType, DagonTask, Task base class
+  batch.py                    Batch, RemoteBatch, Slurm, RemoteSlurm
+  remote.py                   RemoteTask, CloudTask
+  docker_task.py              DockerTask, DockerRemoteTask
+  checkpoint.py               Checkpoint tasks
+  config.py                   INI configuration reader
+  dag_tps.py                  Meta-workflow coordination
+  api/                        HTTP client and workflow service
+  cloud/                      Apache Libcloud helpers
+  communication/               SSH, SCP, Globus, SKYCDS helpers
+  ftp_publisher/               FTP publishing helper
+  peer2peer/                   Experimental peer-to-peer service functions
+\end{lstlisting}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  layer/.style={rectangle, draw=dagonblue, very thick, rounded corners,
+    minimum width=120mm, minimum height=10mm, font=\sffamily\small},
+  fill1/.style={fill=blue!4}, fill2/.style={fill=blue!9},
+  fill3/.style={fill=blue!14}, fill4/.style={fill=blue!20},
+]
+  \node[layer, fill1] (a) at (0,0)  {\textbf{Authoring layer} --- \texttt{Workflow}, \texttt{DagonTask}, \texttt{DAG\_TPS}};
+  \node[layer, fill2] (b) at (0,-1.3) {\textbf{Dependency \& scheduling layer} --- \texttt{Task} (threaded), \texttt{Status}, \texttt{workflow://} resolution};
+  \node[layer, fill3] (c) at (0,-2.6) {\textbf{Staging layer} --- \texttt{Stager}, \texttt{DataMover}, \texttt{StagerMover}};
+  \node[layer, fill4] (d) at (0,-3.9) {\textbf{Execution backends} --- \texttt{Batch}, \texttt{Slurm}, \texttt{RemoteTask}, \texttt{CloudTask}, \texttt{DockerTask}, \texttt{LLMTask}, \texttt{NativeTask}, \texttt{WebTask}};
+  \node[layer, fill1] (e) at (0,-5.2) {\textbf{Optional services} --- \texttt{dagon.api} (Flask service), \texttt{cloud/}, \texttt{communication/} (SSH/SCP/Globus/SKYCDS), \texttt{ftp\_publisher/}};
+\end{tikzpicture}
+\caption{Layered view of the DAGonStar architecture. Each layer depends only
+on the layer(s) below it; optional services are loaded lazily so that core
+local-batch workflows never require Docker, cloud, or Globus dependencies to
+be installed.}
+\label{fig:layered-architecture}
+\end{figure}
+
+\section{Main Abstractions}
+
+\subsection{\texttt{Workflow}}
+
+\texttt{dagon.Workflow} owns a list of tasks and coordinates dependency
+construction, execution, checkpoint state, configuration, and optional
+service registration. Its most important methods are:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{add\_task(task)} --- register a task with the workflow.
+  \item \texttt{make\_dependencies()} --- parse \texttt{workflow://}
+    references and validate the resulting graph.
+  \item \texttt{run(resume\_checkpoint\_file=None)} --- execute the workflow
+    synchronously, in the calling thread.
+  \item \texttt{launch(resume\_checkpoint\_file=None)} and
+    \texttt{wait(timeout=None)} --- execute asynchronously, in a background
+    thread (\Cref{ch:meta-async}).
+  \item \texttt{as\_json()} --- serialize the workflow's structure.
+  \item \texttt{find\_task\_by\_name(workflow\_name, task\_name)} --- locate a
+    task, possibly across workflow boundaries.
+  \item \texttt{Validate\_WF()} --- reject cyclic graphs (\Cref{sec:dag-theory}).
+  \item \texttt{set\_data\_mover(data\_mover)} /
+    \texttt{set\_stager\_mover(stager\_mover)} --- configure how files move
+    between tasks.
+\end{itemize}
+
+\subsection{\texttt{DagonTask}: the Task Factory}
+
+\texttt{DagonTask} is a \emph{factory}: it receives a \texttt{TaskType} value
+and returns an instance of the concrete task class mapped to that type.
+
+\begin{lstlisting}[caption={\texttt{DagonTask} as a factory over concrete task classes.}]
+task = DagonTask(TaskType.BATCH, "A", "echo A")
+\end{lstlisting}
+
+This single line hides the dispatch logic: depending on \texttt{TaskType} and
+on auxiliary keyword arguments (such as \texttt{ip} for remote execution),
+\texttt{DagonTask} returns the appropriate subclass without the workflow
+author needing to import or instantiate it directly.
+
+\subsection{\texttt{Task}: the Common Base}
+
+\texttt{Task} extends \texttt{threading.Thread} and provides, uniformly
+across every execution backend:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item task status (see \Cref{sec:status-model});
+  \item predecessor (\texttt{prevs}) and successor (\texttt{nexts}) lists;
+  \item a back-reference to the owning \texttt{Workflow};
+  \item scratch-directory creation;
+  \item \texttt{workflow://} parsing (\Cref{ch:schema});
+  \item launcher-script generation;
+  \item reference counting and garbage-collection hooks;
+  \item checkpoint interaction (\Cref{ch:lessons-05-07}, Appendix~D).
+\end{itemize}
+
+Concrete task classes override \texttt{on\_execute()} and related
+environment-specific hooks to specialize \emph{how} a command is actually
+run, while inheriting all dependency, staging, and checkpoint behavior from
+\texttt{Task}. This is the architectural reason a heterogeneous DAG --- mixing
+a local shell command, a Slurm submission, and an LLM completion --- behaves
+uniformly with respect to dependencies and data movement: heterogeneity lives
+only in \texttt{on\_execute()}.
+
+\section{Execution Lifecycle}
+\label{sec:execution-lifecycle}
+
+A typical dataflow run follows a fifteen-step sequence, traced here exactly
+as the architecture documentation specifies it:
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item The user creates a \texttt{Workflow}.
+  \item The user creates tasks through \texttt{DagonTask}.
+  \item The user adds tasks with \texttt{workflow.add\_task()}.
+  \item The user calls \texttt{workflow.make\_dependencies()}.
+  \item Each task parses its command for \texttt{workflow://} references.
+  \item Dependencies are recorded in \texttt{prevs} and \texttt{nexts}.
+  \item \texttt{Workflow.Validate\_WF()} rejects cycles.
+  \item The user calls \texttt{workflow.run()}.
+  \item Tasks are started as Python threads.
+  \item Each task waits for predecessor completion.
+  \item Each task creates or reuses a scratch directory.
+  \item Input data is staged.
+  \item The task launcher script is executed.
+  \item Status and checkpoint metadata are updated.
+  \item Dependent tasks proceed.
+\end{enumerate}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=7mm,
+  lstep/.style={rectangle, draw=dagonblue, rounded corners, fill=blue!4,
+    text width=46mm, align=center, font=\sffamily\scriptsize,
+    minimum height=8mm},
+  arr/.style={-{Stealth[length=2.2mm]}, thick, dagonblue}
+]
+  \node[lstep] (s1) {1--3. Author workflow \& tasks, \texttt{add\_task()}};
+  \node[lstep, below=of s1] (s2) {4--7. \texttt{make\_dependencies()}: parse \texttt{workflow://}, build \texttt{prevs}/\texttt{nexts}, \texttt{Validate\_WF()}};
+  \node[lstep, below=of s2] (s3) {8--9. \texttt{run()} starts tasks as threads};
+  \node[lstep, below=of s3] (s4) {10. Each task waits on predecessors};
+  \node[lstep, below=of s4] (s5) {11--12. Scratch dir created; inputs staged};
+  \node[lstep, below=of s5] (s6) {13. Launcher script executed};
+  \node[lstep, below=of s6] (s7) {14--15. Status/checkpoint updated; dependents released};
+  \draw[arr] (s1) -- (s2);
+  \draw[arr] (s2) -- (s3);
+  \draw[arr] (s3) -- (s4);
+  \draw[arr] (s4) -- (s5);
+  \draw[arr] (s5) -- (s6);
+  \draw[arr] (s6) -- (s7);
+  \draw[arr] (s7.east) .. controls +(2.4,0) and +(2.4,0) .. node[right=1mm,
+    font=\sffamily\scriptsize, text width=18mm] {next ready task} (s4.east);
+\end{tikzpicture}
+\caption{The fifteen-step execution lifecycle, grouped into seven logical
+phases. The loop at the right indicates that step~15 (releasing dependents)
+re-enters the per-task lifecycle for every task whose predecessors have just
+completed.}
+\label{fig:execution-lifecycle}
+\end{figure}
+
+\section{The Status Model}
+\label{sec:status-model}
+
+\texttt{dagon.Status} defines five task states:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Status} & \textbf{Meaning} \\
+\midrule
+\texttt{READY}    & Eligible to run; no unmet dependency. \\
+\texttt{WAITING}  & Blocked on at least one predecessor. \\
+\texttt{RUNNING}  & Launcher script currently executing. \\
+\texttt{FINISHED} & Completed with a successful exit code. \\
+\texttt{FAILED}   & Completed with a non-zero exit code or raised exception. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Status changes are local to the running process and, when the optional
+DAGon service is enabled, are additionally propagated through the service
+API (\Cref{sec:service-architecture}).
+
+\section{The Dependency Model}
+
+Every task carries three pieces of dependency bookkeeping:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{prevs}: the tasks that must finish before this task may run;
+  \item \texttt{nexts}: the tasks that depend on this task;
+  \item \texttt{reference\_count}: the number of downstream data references,
+    used by garbage-collection hooks for scratch-directory cleanup.
+\end{itemize}
+
+Explicit dependencies are created with \texttt{consumer.add\_dependency\_to(producer)};
+implicit dependencies are created automatically by parsing
+\texttt{workflow:///producer/path/to/file} tokens in a task's command, as
+introduced in \Cref{sec:task-vs-data} and developed fully in
+\Cref{ch:schema}.
+
+\section{Data Staging}
+\label{sec:data-staging-architecture}
+
+\texttt{Stager.stage\_in()} selects a data-movement strategy for a given
+dependency edge. The implemented \texttt{DataMover} enumeration is:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{\texttt{DataMover}} & \textbf{Mechanism} \\
+\midrule
+\texttt{DONTMOVE} & No staging is performed. \\
+\texttt{LINK}     & Symbolic link to the producer's file. \\
+\texttt{COPY}     & Independent file copy. \\
+\texttt{SCP}      & Secure copy over SSH. \\
+\texttt{HTTP} / \texttt{HTTPS} & Movement over plain or secured HTTP. \\
+\texttt{FTP} / \texttt{SFTP}   & Movement over (S)FTP. \\
+\texttt{GRIDFTP}  & GridFTP-based movement (Globus). \\
+\texttt{SKYCDS}   & SKYCDS-backed catalog/data movement. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The currently most exercised local paths are \texttt{COPY} and \texttt{LINK};
+remote and specialized movers require external services and site-specific
+configuration. A complementary enumeration, \texttt{StagerMover}, controls
+the \emph{staging mode}: \texttt{NORMAL}, \texttt{PARALLEL}, or
+\texttt{SLURM}.
+
+\section{Execution Backends}
+
+\subsection{Batch}
+\texttt{Batch} executes a generated launcher script locally through
+\texttt{subprocess.Popen}. This is the default, dependency-free execution
+path used by nearly every example in this book.
+
+\subsection{Remote Batch}
+When a batch task is constructed with \texttt{ip=...}, the factory
+\texttt{Batch.\_\_new\_\_} transparently returns a \texttt{RemoteBatch}
+instance instead, which executes the same generated launcher through an
+\texttt{SSHManager}-mediated connection.
+
+\subsection{Slurm}
+\texttt{Slurm} generates an \texttt{sbatch} command from optional parameters
+such as partition, task count, memory, wall time, nodes, and tasks per node
+--- the natural interface for compiled HPC models (\Cref{ch:backends}).
+
+\subsection{Docker}
+\texttt{DockerTask} creates or reuses a Docker container through the Docker
+Python SDK; the task command is wrapped inside \texttt{docker exec}.
+
+\subsection{Cloud}
+\texttt{CloudTask} extends remote execution with Apache Libcloud-backed
+instance management, allowing a task to provision or reuse a cloud virtual
+machine as its execution target.
+
+\subsection{Checkpoint}
+Checkpoint tasks preserve task working directories and checkpoint metadata.
+The base \texttt{Workflow} can resume from a checkpoint file independently of
+any explicit \texttt{CHECKPOINT} task (Appendix~D).
+
+\section{Service Architecture}
+\label{sec:service-architecture}
+
+The optional \texttt{dagon.api} package contains two components:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{API}: a client used by workflows to register and update
+    remote service state.
+  \item \texttt{WorkflowServer}: a Flask-based server wrapper exposing
+    workflow operations over HTTP.
+\end{itemize}
+
+The default, documented configuration disables this service entirely:
+
+\begin{lstlisting}[style=ini]
+[dagon_service]
+use = False
+\end{lstlisting}
+
+When disabled --- the recommended mode for introductory examples, unit tests,
+and the entirety of this textbook's local exercises --- DAGonStar runs as a
+purely local, in-process workflow engine with no external service
+dependency.
+
+\section{Known Architectural Constraints}
+\label{sec:known-constraints}
+
+In the interest of scientific and engineering honesty, this section
+reproduces, verbatim in substance, the constraints the project itself
+documents as open or partially mitigated:
+
+\begin{cautionbox}
+\begin{itemize}[leftmargin=1.4em]
+  \item Tasks are Python \emph{threads}, not isolated operating-system
+    processes.
+  \item Some command strings are still assembled by string concatenation;
+    shell-command safety and path quoting remain an active improvement
+    priority, although new staging helpers already quote generated staging
+    paths.
+  \item Optional integrations (Docker, cloud, Globus, API) are exposed
+    through package \emph{extras} and use lazy imports, so that core
+    local-batch workflows do not require those dependencies to be installed.
+  \item The repository has an initial unit-test and CI baseline, but
+    comprehensive workflow, checkpoint, staging, and integration coverage is
+    still being expanded.
+  \item Public APIs have broad type annotations across workflow, task,
+    configuration, staging, task-subclass, and API-client code; stricter
+    static checking remains a maintainability goal.
+  \item Some examples depend on external systems and cannot be verified in a
+    generic continuous-integration environment.
+\end{itemize}
+\end{cautionbox}
+
+\section{The Factory Pattern in Depth}
+\label{sec:factory-pattern-depth}
+
+\texttt{DagonTask} deserves a closer reading than \Cref{sec:computational-model}
+gave it, because the factory pattern it implements is the architectural
+device that lets Part~II of this book introduce four further execution
+backends (Docker, remote/Slurm, LLM, Web, Native) without ever changing the
+authoring surface a workflow writer interacts with.
+
+In classical object-oriented design terms, a \emph{factory} is a function or
+method that returns an instance of one of several related classes, selected
+by a parameter, without the caller needing to know --- or import --- the
+concrete class being instantiated. \texttt{DagonTask(TaskType.BATCH, ...)}
+and \texttt{DagonTask(TaskType.SLURM, ...)} return instances of entirely
+different classes (\texttt{Batch} and \texttt{Slurm} respectively, per the
+\texttt{tasks\_types} mapping reproduced in Appendix~A), yet both are
+constructed through an identical calling convention, and both are usable
+interchangeably as nodes in a \texttt{Workflow}'s task list. This is what
+makes the heterogeneous DAGs explored from \Cref{ch:backends} onward
+possible at all: a single \texttt{workflow.add\_task()} call accepts any
+concrete task type with no special-casing required at the workflow level.
+
+The remote-variant dispatch described in \Cref{ch:architecture} --- a
+\texttt{BATCH} task constructed with \texttt{ip=...} silently becoming a
+\texttt{RemoteBatch} --- is a second, nested instance of the same pattern,
+implemented one level lower, inside \texttt{Batch.\_\_new\_\_} rather than
+inside \texttt{DagonTask} itself. The practical lesson for a workflow author
+is that \emph{keyword arguments, not just the \texttt{TaskType} value, are
+part of the dispatch key}: two superficially similar \texttt{DagonTask}
+calls that differ only in the presence of an \texttt{ip} keyword can
+construct objects of entirely different concrete classes, executing in
+entirely different environments, while remaining structurally identical from
+the perspective of the dependency graph.
+
+\section{Threads, Not Processes: Consequences and Caveats}
+\label{sec:threads-not-processes}
+
+\Cref{sec:known-constraints} flagged, among the documented architectural
+constraints, that DAGonStar tasks are Python \texttt{threading.Thread}
+objects rather than isolated operating-system processes. This single design
+decision has consequences pervasive enough to merit a dedicated discussion,
+because it shapes what a workflow author may safely assume about isolation,
+concurrency, and resource accounting.
+
+In CPython, the standard implementation most DAGonStar deployments will run
+on, the Global Interpreter Lock (GIL) serializes execution of Python
+bytecode across threads within a single process: at any instant, only one
+thread is actually executing Python code, even on a multi-core machine. This
+does \emph{not}, however, prevent DAGonStar's concurrent task execution from
+delivering real parallelism for the cases that matter most in scientific
+computing, for a structural reason: a \texttt{Batch} task's actual
+computational work happens inside a \emph{child process} spawned via
+\texttt{subprocess.Popen}, entirely outside the GIL's purview. The
+controlling Python thread for that task spends almost all of its lifetime
+blocked waiting for the child process to exit --- a blocking I/O-bound wait,
+which CPython threads handle well, releasing the GIL for other threads while
+blocked. The same reasoning extends to \texttt{RemoteTask} (blocked on a
+network socket during SSH execution), \texttt{DockerTask} (blocked on the
+Docker daemon's API), \texttt{WebTask} (blocked on an HTTP response), and
+\texttt{LLMTask} (blocked on the same). Only \texttt{NativeTask}, whose
+computation runs as actual in-process Python code (\Cref{ch:native-tasks}),
+is potentially GIL-bound, and therefore is the one task type whose
+\emph{computational}, rather than purely I/O, concurrency benefits most
+directly from the engine's \texttt{executor="slurm"} escape hatch to
+out-of-process execution.
+
+\begin{cautionbox}
+Thread-based isolation is weaker than process-based isolation in ways that
+matter for defensive workflow design. Threads share the controlling Python
+process's memory space, open file descriptors, environment variables, and
+current working directory at the moment of thread creation. A bug in one
+task's Python-level pre/post-processing code --- as opposed to the external
+program or subprocess it launches --- could in principle corrupt shared
+interpreter state in a way a process-isolated design would prevent
+entirely. This is part of why the developer guide (Appendix~B) flags
+defensive shell quoting and careful handling of paths and user-controlled
+values as an active, ongoing engineering priority rather than a solved
+problem.
+\end{cautionbox}
+
+\section{Comparing the Layered Architecture to Alternative Designs}
+
+It is instructive to contrast the four-layer architecture of
+\Cref{fig:layered-architecture} with two alternative architectural strategies
+a workflow engine could have adopted, because the contrast clarifies what
+DAGonStar is optimizing for.
+
+A \textbf{monolithic engine} would fold dependency resolution, staging, and
+execution into a single class hierarchy, with each concrete task type
+re-implementing its own version of dependency tracking and data movement.
+This would reduce the indirection a reader must follow to understand any one
+task type in isolation, but it would multiply the surface area for bugs in
+dependency resolution --- a defect in cycle detection, for instance, would
+need to be fixed and tested independently in every concrete task class,
+rather than once in the shared \texttt{Task} base class examined in
+\Cref{sec:execution-lifecycle}.
+
+A \textbf{microservice-oriented engine}, at the opposite extreme, would
+externalize scheduling and staging into separate, independently deployed
+services communicating over a network protocol, with the Python library
+reduced to a thin client. This would more cleanly separate concerns and
+would scale naturally to very large workflows or multi-tenant deployments,
+but at the cost of introducing a mandatory network dependency and
+operational complexity (service discovery, authentication, availability)
+for even the simplest single-machine workflow --- exactly the cost the
+optional, disable-by-default DAGon service architecture
+(\Cref{sec:service-architecture}) is designed to avoid imposing on the
+common case.
+
+\begin{practicebox}
+DAGonStar's layered-but-in-process design (\Cref{fig:layered-architecture})
+occupies a deliberate middle position: dependency resolution and staging are
+shared, reusable layers (avoiding the monolithic engine's duplication), but
+they execute in-process by default (avoiding the microservice engine's
+mandatory operational overhead), with the optional \texttt{dagon.api}
+package available as an escape hatch when a deployment genuinely needs
+multi-process or multi-host coordination beyond what SSH-based remote
+execution already provides.
+\end{practicebox}
+
+\section{Reading the Architecture Document as a Living Artifact}
+
+A final, methodological point belongs in this chapter rather than in the
+developer guide (Appendix~B), because it concerns how a \emph{reader},
+not only a contributor, should treat architectural documentation.
+\Cref{ch:architecture} opened by quoting the project's own principle that
+documentation must remain consistent with the current implementation, and
+\Cref{sec:known-constraints} reproduced, deliberately without softening, the
+project's own list of open architectural debt. This is not incidental
+even-handedness; it reflects a specific, defensible position about what
+makes technical documentation trustworthy for a scientific audience.
+
+A textbook --- or any documentation --- that described only an engine's
+intended, idealized behavior, omitting known gaps such as incomplete shell
+quoting or partial test coverage, would actively mislead a researcher
+relying on it to assess whether a given workflow's results are
+trustworthy. The constraints listed in \Cref{sec:known-constraints} are not
+flaws unique to DAGonStar; comparable caveats (partial coverage of edge
+cases, ongoing hardening of command construction, uneven test coverage
+across optional integrations) are common to research software more broadly,
+precisely because research software is typically developed under different
+incentives than commercial infrastructure software. Treating these caveats
+as part of the architecture, rather than as a separate errata list, is this
+book's attempt to model the kind of honest engineering communication the
+developer guide (Appendix~B) explicitly asks contributors to maintain.
+
+\section{Chapter Summary}
+
+The architecture is a thin, layered stack: an authoring layer
+(\texttt{Workflow}, \texttt{DagonTask}), a dependency and scheduling layer
+built on threaded \texttt{Task} objects, a staging layer that abstracts data
+movement behind \texttt{DataMover}/\texttt{StagerMover}, a family of
+execution backends that share this common infrastructure while specializing
+only \texttt{on\_execute()}, and an optional service layer for distributed
+registration and status propagation. This chapter additionally examined the
+factory pattern underlying \texttt{DagonTask} and its nested remote-variant
+dispatch, reasoned about the consequences of thread-based rather than
+process-based task isolation, compared the chosen layered-in-process design
+against monolithic and microservice alternatives, and argued for treating
+architectural documentation --- including its documented limitations --- as
+part of the scientific record a researcher relies on. The next chapter puts
+this architecture to work by walking through installation and a complete
+first workflow.
+
+\begin{exercise}
+Explain, in terms of \Cref{sec:threads-not-processes}, why a
+\texttt{NativeTask} performing a computationally intensive, pure-Python
+operation (for example, a nested loop over a large array with no NumPy
+vectorization) might \emph{not} benefit from running concurrently with
+several sibling \texttt{Batch} tasks in the same workflow, even though the
+engine schedules all of them as threads. What change to the task's
+implementation, or to its \texttt{executor} argument, would most directly
+address this?
+\end{exercise}

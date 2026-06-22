@@ -1,0 +1,281 @@
+\chapter{Installation and the First Workflow}
+\label{ch:getting-started}
+
+This chapter takes a new user from an empty machine to a verified, running
+DAGonStar workflow, following the project's own \texttt{getting\_started.md}
+guide.
+
+\section{Requirements}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Python 3.8 or newer.
+  \item A POSIX-like shell for the included command examples.
+  \item Git.
+\end{itemize}
+
+Optional integrations require additional, separately verified services:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Docker, for Docker tasks (\Cref{ch:backends});
+  \item SSH access, for remote tasks;
+  \item Slurm, for HPC scheduler tasks;
+  \item cloud provider credentials, for cloud tasks;
+  \item Globus or SKYCDS credentials, for specialized data movement.
+\end{itemize}
+
+\section{Installing DAGonStar from Source}
+
+\begin{lstlisting}[style=bash, caption={Full development installation.}]
+git clone https://github.com/DagOnStar/dagonstar.git
+cd dagonstar
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -e .
+\end{lstlisting}
+
+For a smaller installation footprint, install only the core package and the
+optional integrations actually needed:
+
+\begin{lstlisting}[style=bash, caption={Minimal install with selective extras.}]
+python -m pip install -e .
+python -m pip install -e ".[docker]"   # Docker tasks
+python -m pip install -e ".[cloud]"    # cloud tasks
+python -m pip install -e ".[globus]"   # Globus staging
+python -m pip install -e ".[api]"      # Flask workflow service
+\end{lstlisting}
+
+\begin{practicebox}
+This extras-based packaging is itself a reproducibility decision: a published
+workflow's installation instructions should record \emph{exactly} which
+extras were required, so a future reader does not need to guess whether
+Docker or cloud credentials are necessary to reproduce a given experiment.
+\end{practicebox}
+
+\section{Creating a Configuration File}
+
+\begin{lstlisting}[style=bash]
+cp dagon.ini.sample dagon.ini
+\end{lstlisting}
+
+For a first local workflow, the sample defaults suffice. Confirm the two keys
+that matter most for local execution:
+
+\begin{lstlisting}[style=ini]
+[dagon_service]
+use = False
+
+[batch]
+scratch_dir_base=/tmp/
+\end{lstlisting}
+
+The full configuration model is the subject of \Cref{ch:configuration} and
+Appendix~C.
+
+\section{Writing a First Workflow}
+
+\begin{lstlisting}[caption={\texttt{first\_workflow.py}: a two-task, data-oriented workflow.}]
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+if __name__ == "__main__":
+    workflow = Workflow("FirstWorkflow")
+
+    prepare = DagonTask(
+        TaskType.BATCH,
+        "prepare",
+        "mkdir -p data; echo 'temperature,depth' > data/profile.csv; "
+        "echo '18.5,12' >> data/profile.csv",
+    )
+
+    analyze = DagonTask(
+        TaskType.BATCH,
+        "analyze",
+        "wc -l workflow:///prepare/data/profile.csv > summary.txt",
+    )
+
+    workflow.add_task(prepare)
+    workflow.add_task(analyze)
+    workflow.make_dependencies()
+    workflow.run()
+\end{lstlisting}
+
+\begin{lstlisting}[style=bash]
+python first_workflow.py
+\end{lstlisting}
+
+\subsection{What Happens, Step by Step}
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \texttt{prepare} creates a small CSV file inside its own scratch
+    directory.
+  \item \texttt{analyze} references that file with
+    \texttt{workflow:///prepare/data/profile.csv}.
+  \item \texttt{workflow.make\_dependencies()} detects, by parsing
+    \texttt{analyze}'s command, that \texttt{analyze} depends on
+    \texttt{prepare}.
+  \item DAGonStar stages the referenced file into the \texttt{analyze}
+    task's working directory.
+  \item \texttt{summary.txt} is produced by the \texttt{analyze} task.
+\end{enumerate}
+
+This five-step trace is a miniature instance of the fifteen-step lifecycle
+formalized in \Cref{sec:execution-lifecycle}; the reader is encouraged to map
+each numbered step here onto the corresponding lifecycle phase.
+
+\section{Inspecting Generated Task Directories}
+
+By default, task directories are created under \texttt{/tmp/}, with names
+that include a millisecond timestamp and the task name, e.g.:
+
+\begin{lstlisting}[style=bash]
+/tmp/1710000000000-prepare
+/tmp/1710000000100-analyze
+\end{lstlisting}
+
+Each task directory contains:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item task output files;
+  \item a \texttt{.dagon/} directory;
+  \item generated launcher scripts;
+  \item captured standard output.
+\end{itemize}
+
+\Cref{ch:lessons-03-04} examines the contents of \texttt{.dagon/} in detail,
+treating the generated launcher as a first-class provenance artifact.
+
+\section{Running the Unit Test Suite}
+
+\begin{lstlisting}[style=bash]
+python -m unittest discover -s tests -v
+\end{lstlisting}
+
+The test suite verifies behavior that the project commits to keeping stable
+while new features are developed; running it after installation is a useful
+sanity check that the local environment matches the documented one.
+
+\section{Understanding the Installation Footprint}
+
+The two installation paths given above --- the full
+\texttt{requirements.txt} install and the minimal extras-based install ---
+are not merely a convenience choice; they encode a deliberate packaging
+philosophy that is worth making explicit before proceeding further, since it
+recurs throughout Part~II whenever a new execution backend is introduced.
+
+The core package --- \texttt{Workflow}, \texttt{DagonTask}, the
+\texttt{BATCH} backend, dependency resolution, and local data staging ---
+has, by design, no dependency on Docker, any cloud SDK, Globus, or a web
+framework. A researcher whose entire pipeline consists of local shell
+commands and \texttt{workflow://} references can install DAGonStar with a
+minimal footprint and a correspondingly small attack surface and dependency
+tree. Every additional capability examined in \Cref{ch:backends} onward ---
+container execution, cloud provisioning, Globus-mediated transfer, the
+optional HTTP service --- is gated behind an explicit \texttt{pip} extra,
+and, as \Cref{sec:known-constraints} noted, the corresponding Python modules
+use \emph{lazy imports}, meaning the module is not even imported, let alone
+required to be installed, unless a workflow actually constructs a task of
+that type.
+
+\begin{practicebox}
+This has a direct, practical consequence for reproducibility reporting,
+foreshadowed already in this chapter's earlier discussion of extras: a
+workflow's installation instructions should state not just ``install
+DAGonStar,'' but the precise set of extras required, because that set is
+itself a statement about which execution backends --- and therefore which
+external services and credentials --- a reader will need to provision before
+they can run the workflow end to end. A workflow using only \texttt{BATCH}
+and \texttt{LLM} tasks against a mock provider, for instance, needs no
+extras at all; one that also schedules \texttt{DOCKER} tasks needs the
+\texttt{docker} extra and a running daemon.
+\end{practicebox}
+
+\section{The First Workflow as a Minimal Reproducible Experiment}
+
+It is worth pausing on \texttt{first\_workflow.py} a second time, after the
+step-by-step trace already given, to read it specifically as an instance of
+what \Cref{ch:introduction} called a scientific benefit rather than merely
+as a syntactic example.
+
+Consider what would be required to reproduce this two-line ``experiment''
+--- the claim that a small CSV profile, once line-counted, yields a
+particular summary --- using only shell history. A second researcher would
+need to know, without being told explicitly, that the \texttt{wc -l}
+invocation depended on the CSV having already been generated by an earlier,
+separately run command; nothing in the shell history itself records that
+dependency as a structural fact, only as an accident of the order in which
+commands happened to be typed. The DAGonStar version of the same experiment
+makes the dependency a first-class, parseable part of the program text:
+\texttt{workflow:///prepare/data/profile.csv} cannot be misread or silently
+decoupled from its producer, because \texttt{make\_dependencies()} re-derives
+the edge from the reference every time the script runs, on any machine, in
+any order the engine chooses to schedule it. This is precisely the
+\emph{traceability} benefit named in \Cref{ch:introduction}, made concrete
+in the smallest possible example before Part~I's later chapters scale it up
+to checkpointed, staged, multi-backend pipelines.
+
+\begin{exercise}
+Modify \texttt{first\_workflow.py} so that a third task,
+\texttt{validate}, depends on \texttt{analyze}'s \texttt{summary.txt} output
+and exits with a non-zero status if the line count it contains is zero
+(indicating an empty or malformed profile). Run the modified workflow and
+verify, using the techniques of \Cref{sec:execution-lifecycle}, that the
+\texttt{validate} task is correctly recorded as \texttt{FAILED} when you
+intentionally corrupt the \texttt{prepare} task's output to produce an empty
+file.
+\end{exercise}
+
+\section{Common Early Pitfalls}
+
+New users of any workflow engine tend to encounter a small, predictable set
+of early mistakes; naming them explicitly here, before Part~I develops the
+underlying mechanisms in full, should save the reader some early debugging
+time.
+
+\begin{description}[leftmargin=1.8em, style=nextline]
+  \item[Forgetting \texttt{make\_dependencies()} while still inspecting the
+    graph.] As \Cref{ch:meta-async} will show, \texttt{run()} and
+    \texttt{launch()} both build missing dependencies automatically, so
+    omitting the explicit call does not break execution --- but it does mean
+    that any code placed \emph{between} task construction and
+    \texttt{run()} that inspects \texttt{task.prevs} or \texttt{task.nexts}
+    will see an empty, not-yet-resolved graph. Call
+    \texttt{make\_dependencies()} explicitly whenever the graph must be
+    inspected or validated before execution.
+  \item[Confusing the producer task's working directory with the consumer's.]
+    A \texttt{workflow://} path is always relative to the \emph{producer}
+    task's directory (\Cref{ch:schema}), never to the consumer's; a common
+    early error is writing a reference as though the path were relative to
+    wherever the consumer happens to be running.
+  \item[Assuming sibling tasks run in a particular order.] As
+    \Cref{sec:topological-ordering} makes precise, two tasks with no
+    dependency edge between them have no guaranteed relative order; code
+    that implicitly relies on one finishing before the other without an
+    edge connecting them is a latent bug that may not surface until the
+    workflow is run on a machine with different thread-scheduling
+    behavior.
+  \item[Treating \texttt{/tmp} as durable storage.] The default
+    \texttt{scratch\_dir\_base} of \texttt{/tmp/} is convenient for the
+    tutorial-scale examples in this book, but \texttt{/tmp} is frequently
+    cleared on system reboot or by periodic cleanup policies; any workflow
+    relying on checkpoint reuse (\Cref{ch:lessons-05-07}) across a span of
+    time longer than a single working session should configure a more
+    durable \texttt{scratch\_dir\_base}, as \Cref{ch:configuration}
+    discusses.
+\end{description}
+
+\section{Where to Go Next}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \Cref{ch:configuration} develops the complete configuration model.
+  \item \Cref{ch:schema} formalizes the \texttt{workflow://} schema used
+    implicitly in this chapter's example.
+  \item \Cref{ch:lessons-01-02} onward follow the tutorial's fourteen
+    lessons incrementally.
+  \item \Cref{ch:external-software} explains how to wrap compiled,
+    command-line scientific models such as WRF.
+  \item \Cref{ch:architecture} should be revisited before modifying engine
+    internals.
+\end{itemize}

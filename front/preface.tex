@@ -1,0 +1,69 @@
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+Computational environmental science increasingly depends on the orchestration
+of heterogeneous resources: numerical models compiled for HPC clusters, data
+preprocessing and post-processing scripts, container images that freeze a
+fragile scientific software stack, cloud instances rented for a single
+forecast cycle, and --- more recently --- AI services consumed through web
+APIs for summarization, anomaly detection, or decision support. The challenge
+this book addresses is not how to write any one of these components, but how
+to make their \emph{composition} explicit, reproducible, portable, and
+auditable.
+
+\emph{DAGonStar} answers this challenge with a deliberately small abstraction:
+a workflow is a directed acyclic graph (DAG) of tasks, and a task is a Python
+object that executes a command --- local, remote, containerized,
+scheduler-submitted, an HTTP request, an LLM completion, or an importable
+Python function --- in a particular environment. This minimalism is the
+engine's central design virtue. It keeps workflow authoring close to ordinary
+Python, while still providing the scientific guarantees that ad hoc shell
+scripts cannot: explicit dependency graphs, automatic data staging, cycle
+detection, checkpointing, and a uniform mechanism --- the \texttt{workflow://}
+schema --- for expressing that one task consumes a file produced by another.
+
+\paragraph{How this book is organized.}
+The chapters follow, almost one-to-one, the project's own fourteen-lesson
+tutorial sequence (\texttt{docs/tutorial/}), because that sequence was already
+designed as an incremental, self-verifying curriculum: each lesson states an
+objective, a concept, a complete code listing, the expected behavior, a
+verification procedure, and a ``scientific practice note'' connecting the
+mechanism to good research practice. This book preserves that pedagogical
+backbone but expands every lesson into a fuller theoretical discussion,
+situates it within the engine's architecture, and illustrates it with
+original figures.
+
+Part~I (Chapters~1--8) builds the conceptual and mechanical foundations:
+scientific workflow theory, the DAGonStar architecture, installation, the
+\texttt{workflow://} schema, configuration, and Lessons~1--7 (local workflows
+through data staging). Part~II (Chapters~9--14) covers heterogeneous execution
+backends and the engine's AI--HPC integration layer: Lessons~8--14 (Docker,
+remote/Slurm execution, meta-workflows, asynchronous launch, LLM tasks, Web
+tasks, and Native Python tasks), plus a dedicated chapter on wrapping external
+scientific software. Part~III (Chapters~15--17) turns to computational
+environmental science proper, using the repository's environmental
+application example as an extended case study and closing with a synthesis
+chapter that connects every preceding mechanism into the shape of an
+operational, AI-augmented forecasting chain. Appendices~A--D collect reference
+material --- the public API, developer practices, the full configuration
+model, and checkpoint semantics --- intended for use after the narrative
+chapters, while working with real workflows.
+
+\paragraph{Intended audience.}
+This book is written for graduate students, researchers, and research software
+engineers in computational and environmental science who need to compose
+heterogeneous computational pipelines reproducibly. Working knowledge of
+Python and of basic Unix/HPC concepts (shells, SSH, job schedulers) is
+assumed; no prior exposure to workflow engines is required.
+
+\paragraph{A note on fidelity to source material.}
+Every code listing in this book is reproduced, without semantic alteration,
+from the DAGonStar documentation (\texttt{docs/}) and tutorial sources
+(\texttt{docs/tutorial/}, \texttt{examples/}) on the
+\texttt{development-native-web} branch of
+\url{https://github.com/DagOnStar/dagonstar}. Where the documentation
+explicitly flags a limitation, an open technical-debt item, or a constraint of
+the current implementation, this book preserves that caveat rather than
+smoothing it away, in keeping with the project's own stated principle that
+``documentation must remain consistent with the software in this
+repository.''

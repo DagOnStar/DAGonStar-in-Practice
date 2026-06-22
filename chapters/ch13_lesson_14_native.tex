@@ -1,0 +1,294 @@
+\chapter{Native Python Tasks}
+\label{ch:native-tasks}
+
+\section{Design Goals}
+
+\texttt{TaskType.NATIVE} lets an \emph{importable Python function} act as a
+workflow task while preserving DAGonStar dependencies, scratch isolation,
+staged files, declared outputs, and checkpoint metadata. Native tasks are
+appropriate when scientific logic is naturally Python code --- for instance,
+an array-processing or statistical routine built on NumPy or xarray --- and
+should not be artificially encoded as a shell command merely to fit the
+\texttt{BATCH} task model.
+
+\begin{cautionbox}
+\texttt{NativeTask} records a \texttt{module:function} reference and
+JSON-compatible parameter bindings. The runner \emph{imports} the function in
+the task environment, so functions must be module-level and importable.
+Lambdas and nested functions are deliberately rejected, because they are not
+portable across executors (in particular, a remote Slurm executor must be
+able to import the same function from the same module on a different
+machine).
+\end{cautionbox}
+
+\section{Worked Example}
+
+\begin{lstlisting}[caption={\texttt{native\_functions.py}: the importable native function.}]
+def transform(input_file: str, scale: float, output_file: str) -> dict:
+    with open(input_file, encoding="utf-8") as source:
+        values = [float(line.strip()) for line in source if line.strip()]
+    with open(output_file, "w", encoding="utf-8") as destination:
+        for value in values:
+            destination.write(f"{value * scale}\n")
+    return {"count": len(values), "scale": scale}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={\texttt{lesson\_14\_native\_tasks.py}: the workflow that calls it.}]
+import json
+import tempfile
+from pathlib import Path
+
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+def config(scratch):
+    return {
+        "batch": {"scratch_dir_base": scratch, "run_base": "", "threads": "1"},
+        "dagon_service": {"use": "False", "route": "http://localhost:57000"},
+        "ftp_pub": {"ip": "localhost"},
+        "slurm": {"partition": ""},
+    }
+
+
+with tempfile.TemporaryDirectory(prefix="dagon-native-lesson-") as scratch:
+    workflow = Workflow("Lesson14", config=config(scratch))
+    produce = DagonTask(
+        TaskType.BATCH, "produce", "mkdir -p data; printf '2\n4\n' > data/input.txt"
+    )
+    transform = DagonTask(
+        TaskType.NATIVE,
+        "transform",
+        "native_functions:transform",
+        inputs={"input_file": "workflow:///produce/data/input.txt", "scale": 1.5},
+        outputs={"output_file": "scaled.txt"},
+    )
+    consume = DagonTask(
+        TaskType.BATCH, "consume", "cat workflow:///transform/outputs/scaled.txt"
+    )
+    for task in (produce, transform, consume):
+        workflow.add_task(task)
+    workflow.run()
+    print(Path(transform.working_dir, "outputs", "scaled.txt").read_text())
+    print(json.loads(Path(transform.working_dir, ".dagon", "native_result.json").read_text()))
+\end{lstlisting}
+
+\begin{practicebox}
+This small two-file layout (\texttt{native\_functions.py} alongside the
+workflow script) is essential, not incidental: it is precisely what makes the
+function importable by the separate runner process. A native function
+defined inline inside the workflow script's \texttt{\_\_main\_\_} block would
+not be importable, and would fail at the same architectural boundary that
+excludes lambdas.
+\end{practicebox}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=20mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=30mm, minimum height=13mm, font=\sffamily\small, align=center},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (prod) {produce\\ \footnotesize \texttt{data/input.txt}};
+  \node[task, right=26mm of prod] (nat) {transform\\ \footnotesize \texttt{TaskType.NATIVE}\\ \texttt{native\_functions:transform}};
+  \node[task, right=26mm of nat] (cons) {consume\\ \footnotesize reads \texttt{outputs/scaled.txt}};
+  \draw[arr] (prod) -- node[above,font=\sffamily\scriptsize]{\texttt{inputs=\{input\_file: workflow://...\}}} (nat);
+  \draw[arr] (nat) -- node[above,font=\sffamily\scriptsize]{\texttt{outputs=\{output\_file: scaled.txt\}}} (cons);
+\end{tikzpicture}
+\caption{The Native task pipeline: a staged input file becomes a Python
+function argument, and a declared output parameter becomes an ordinary,
+dependency-trackable file for the downstream consumer.}
+\label{fig:native-task-flow}
+\end{figure}
+
+\section{Interpretation}
+
+The reference creates \texttt{produce} $\to$ \texttt{transform}; the runner
+passes a scratch-local file path to the \texttt{input\_file} parameter and a
+scratch-local output path to the \texttt{output\_file} parameter. The
+declared output is therefore available to the downstream task through
+\texttt{workflow:///transform/outputs/scaled.txt}, exactly as any other
+task's file output would be. The Python function's \emph{return value} is
+retained as JSON metadata in \texttt{.dagon/native\_result.json} ---
+analogous in spirit to the full-response retention strategy used by LLM
+tasks (\Cref{ch:llm-tasks}): both preserve a richer, machine-readable record
+than the minimum a human reader strictly needs.
+
+\section{Constraints and Extension}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Scalars and return values must be JSON-serializable.
+  \item Output paths must be relative and cannot escape the task's scratch
+    directory.
+  \item For a configured cluster, \texttt{executor="slurm"} may be used with
+    scheduler settings supplied in \texttt{resources}; the function's module
+    and DAGonStar itself must be installed where the compute node can import
+    them.
+\end{itemize}
+
+\section{Verification}
+
+\begin{lstlisting}[style=bash]
+python3 -m unittest tests.test_native -v
+\end{lstlisting}
+
+See also \texttt{examples/native/README.md} in the repository for further,
+runnable verification material.
+
+\section{Native Tasks in a Scientific Pipeline}
+
+Native tasks complete a triad with LLM and Web tasks that, taken together,
+constitute the engine's full AI--HPC integration surface:
+
+\begin{table}[h]
+\centering
+\caption{The three non-shell task types and their characteristic role.}
+\label{tab:ai-hpc-triad}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Task type} & \textbf{What it executes} & \textbf{Characteristic role} \\
+\midrule
+\texttt{LLM}    & OpenAI-compatible chat request & AI-assisted interpretation, summarization \\
+\texttt{WEB}    & Arbitrary HTTP/HTTPS request   & Publication, ingestion, third-party API calls \\
+\texttt{NATIVE} & Importable Python function     & In-process scientific computation (NumPy/xarray-style) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In a typical environmental forecasting chain (\Cref{ch:case-study}), a
+\texttt{NATIVE} task is often the most natural choice for a post-processing
+step that is already implemented as a Python function --- for instance, a
+unit conversion, a regridding routine, or a statistical quality-control
+check --- avoiding the indirection of wrapping that function in a throwaway
+command-line script merely to satisfy a \texttt{BATCH} task interface.
+
+\section{Why Importability, Not Mere Callability, Is Required}
+
+\Cref{ch:native-tasks} stated, as a constraint, that native functions must
+be module-level and importable, and that lambdas and nested functions are
+rejected. It is worth explaining \emph{why} this constraint is structurally
+necessary, rather than an arbitrary restriction, since understanding the
+reason clarifies what a workflow author can and cannot work around.
+
+A \texttt{NativeTask} does not execute the supplied function inside the same
+Python process, or even necessarily the same thread, that constructed the
+\texttt{DagonTask} object. Recall from \Cref{sec:threads-not-processes} that
+DAGonStar tasks are threads, not processes, for backends whose computation
+happens in a spawned subprocess or over a network connection; a
+\texttt{NativeTask} configured with \texttt{executor="local"} does still
+ultimately need to make the target function available to whatever runner
+process or thread actually performs the call, and a \texttt{NativeTask}
+configured with \texttt{executor="slurm"} must additionally make the
+function available on a \emph{different machine entirely} --- the compute
+node a Slurm job lands on, which may share no process memory whatsoever
+with the controller that submitted the job.
+
+A lambda or a function nested inside another function exists only as an
+in-memory object inside the defining process; Python provides no general
+mechanism to serialize such an object's code and ship it, intact, to another
+process or machine (the standard \texttt{pickle} mechanism, which many
+readers may expect to handle this, explicitly does not support pickling
+lambdas or local functions, for exactly this reason). A module-level
+function, by contrast, can always be \emph{re-imported by name} --- the
+runner simply executes the equivalent of \texttt{from native\_functions
+import transform} --- which works identically whether the runner is in the
+same process, a different local process, or a remote compute node, provided
+only that the same module is installed and importable wherever the runner
+executes.
+
+\begin{practicebox}
+This is the same architectural principle already encountered, in a
+different guise, in this book's discussion of remote Batch and Slurm
+execution (\Cref{ch:backends}): just as a \texttt{BATCH} task's portability
+across hosts depends on the target executable being installed wherever the
+command runs, a \texttt{NATIVE} task's portability across executors depends
+on the target Python module being installed wherever the runner executes.
+The module-level-function constraint is simply this same requirement,
+restated for Python's own import mechanism rather than for a shell's
+\texttt{PATH}.
+\end{practicebox}
+
+\section{Native Tasks and the Scientific Python Ecosystem}
+
+\Cref{ch:native-tasks} already suggested that Native tasks are a natural fit
+for NumPy- or xarray-style computation; it is worth developing this
+suggestion into a fuller discussion of where, exactly, the boundary should
+fall between a \texttt{NATIVE} task and a \texttt{BATCH} task that happens
+to invoke a Python script.
+
+Consider a regridding or unit-conversion routine already implemented as a
+well-tested, importable function in a research group's existing Python
+codebase. Wrapping it as a \texttt{BATCH} task would require writing a
+small command-line entry point --- parsing arguments, reading and writing
+files explicitly --- purely to satisfy the shell-command interface, even
+though the underlying logic never needed a command-line interface in the
+first place. Wrapping the same function as a \texttt{NATIVE} task, by
+contrast, requires no such adapter: the function's existing signature,
+provided its arguments are JSON-compatible scalars or file paths, can be
+bound directly through the \texttt{inputs}/\texttt{outputs} mapping
+mechanism of Lesson~14, with DAGonStar itself handling the file staging and
+result capture that a hand-written command-line wrapper would otherwise
+need to implement redundantly.
+
+\begin{example}
+Contrast the two wrapping strategies for a hypothetical
+\texttt{convert\_units(value, from\_unit, to\_unit)} function already
+present in a research codebase. As a \texttt{BATCH} task, a researcher would
+need to write and maintain a separate \texttt{convert\_units\_cli.py}
+script with \texttt{argparse}-based argument handling, purely to make the
+function invocable from a shell command string. As a \texttt{NATIVE} task,
+the existing function can be called directly --- provided it is moved to,
+or already lives in, an importable module --- via:
+\begin{lstlisting}
+convert = DagonTask(
+    TaskType.NATIVE, "convert", "units_module:convert_units",
+    inputs={"value": 18.5, "from_unit": "celsius", "to_unit": "kelvin"},
+    outputs={},
+)
+\end{lstlisting}
+eliminating the redundant command-line adapter entirely, at the cost of the
+importability constraint discussed above.
+\end{example}
+
+\begin{cautionbox}
+This convenience is not unconditional. A function that internally launches
+a separate, long-running compiled simulation via its own subprocess calls
+gains little from \texttt{NATIVE}-task wrapping over a direct
+\texttt{BATCH} or \texttt{SLURM} task targeting the simulation executable
+itself; the JSON-serializability requirement on inputs and outputs
+(\Cref{ch:native-tasks}) is also a genuine constraint that purely in-process,
+array-oriented scientific computation satisfies easily, but that functions
+exchanging large binary scientific data structures --- raw NumPy arrays, for
+instance, as opposed to file paths to NetCDF files --- do not satisfy
+directly without an explicit serialization step the function itself must
+perform.
+\end{cautionbox}
+
+\section{Chapter Summary}
+
+\texttt{TaskType.NATIVE} closes Part~II's progression through heterogeneous
+execution backends by bringing ordinary, importable Python functions into
+the same dependency, staging, and provenance model already established for
+shell commands (Part~I), containers and HPC schedulers
+(\Cref{ch:backends}), and AI/web services (\Cref{ch:llm-tasks,ch:web-tasks}).
+This chapter additionally explained, in terms of Python's own serialization
+limitations, why the module-level-importability constraint is structurally
+necessary rather than arbitrary, and examined where the boundary should fall
+between wrapping existing scientific Python code as a \texttt{NATIVE} task
+versus as a \texttt{BATCH} task invoking a hand-written command-line
+adapter. \Cref{ch:external-software} now turns from the engine's task-type
+taxonomy to the practical discipline of wrapping real, compiled scientific
+software --- the discipline that Part~III's environmental-science case study
+depends on directly.
+
+\begin{exercise}
+A colleague proposes converting a research group's existing
+\texttt{archive2plot.py} rendering script (\Cref{ch:case-study}) from a
+\texttt{BATCH} task, invoked as a standalone command-line program, into a
+\texttt{NATIVE} task calling its core rendering function directly. List the
+specific, concrete checks you would perform on the existing script before
+agreeing this conversion is straightforward, referencing both the
+importability constraint and the JSON-serializability constraint discussed
+in this chapter.
+\end{exercise}

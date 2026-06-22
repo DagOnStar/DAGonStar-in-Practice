@@ -1,0 +1,384 @@
+\chapter{Configuration Management}
+\label{ch:configuration}
+
+\section{Configuration Sources}
+
+DAGonStar reads configuration from an INI file, conventionally named
+\texttt{dagon.ini}; the sample file \texttt{dagon.ini.sample} documents every
+key recognized by the current implementation. Configuration is loaded by
+\texttt{dagon.config.read\_config()}, which returns a nested dictionary of
+strings:
+
+\begin{lstlisting}[caption={Reading configuration programmatically.}]
+from dagon.config import read_config
+
+cfg = read_config("dagon.ini")
+scratch = cfg["batch"]["scratch_dir_base"]
+\end{lstlisting}
+
+A \texttt{Workflow} may also receive an in-memory configuration dictionary
+directly, bypassing the INI file entirely --- useful for unit tests or
+programmatic workflow construction, and used extensively by the LLM and Web
+task lessons in Part~II:
+
+\begin{lstlisting}[caption={In-memory configuration.}]
+from dagon import Workflow
+
+workflow = Workflow("Experiment", config={
+    "batch": {"scratch_dir_base": "/tmp/", "run_base": "", "threads": "1"},
+    "dagon_service": {"use": "False"},
+    "slurm": {"partition": ""},
+})
+\end{lstlisting}
+
+\section{Minimal Configuration for Local Batch Workflows}
+
+\begin{lstlisting}[style=ini]
+[dagon_service]
+route = http://localhost:57000
+use = False
+
+[ftp_pub]
+ip = localhost
+
+[batch]
+scratch_dir_base=/tmp/
+run_base=
+remove_dir=False
+threads=1
+
+[slurm]
+partition=
+\end{lstlisting}
+
+The current implementation provides safe defaults for missing optional
+\texttt{dagon\_service} and \texttt{ftp\_pub} values, but production
+workflows should keep these sections explicit, for clarity and for the sake
+of a future reader auditing the configuration.
+
+\section{Section-by-Section Reference}
+
+\subsection{\texttt{[dagon\_service]}}
+
+\begin{lstlisting}[style=ini]
+[dagon_service]
+route = http://localhost:57000
+use = False
+\end{lstlisting}
+
+When \texttt{use = True}, \texttt{Workflow} attempts to register itself with
+the DAGon service through \texttt{dagon.api.API}; the service then mediates
+workflow/task registration, status updates, and some transversal workflow
+lookups (\Cref{sec:service-architecture}). When disabled, DAGonStar runs as a
+purely local, in-process engine --- the recommended mode for introductory
+examples and unit tests, and the mode used throughout this book's local
+exercises.
+
+\subsection{\texttt{[ftp\_pub]}}
+
+\begin{lstlisting}[style=ini]
+[ftp_pub]
+ip = localhost
+\end{lstlisting}
+
+Used by transversal workflow handling when task data must be downloaded from
+a host registered through the service. Current defaults: host
+\texttt{localhost}, user \texttt{anonymous}, empty password.
+\begin{cautionbox}
+Do not store production passwords in the repository. Use local, ignored
+configuration, environment variables, or a site-specific secret-management
+process.
+\end{cautionbox}
+
+\subsection{\texttt{[dagon\_ip]}}
+
+\begin{lstlisting}[style=ini]
+[dagon_ip]
+ip = localhost
+\end{lstlisting}
+
+Present in the sample configuration for service/node-related workflows; not
+required for basic local examples.
+
+\subsection{\texttt{[batch]}}
+
+\begin{lstlisting}[style=ini]
+[batch]
+scratch_dir_base=/tmp/
+run_base=
+remove_dir=False
+threads=1
+\end{lstlisting}
+
+\begin{description}[leftmargin=2em, style=nextline]
+  \item[\texttt{scratch\_dir\_base}] base directory used to create task
+    scratch directories (\Cref{sec:execution-lifecycle}).
+  \item[\texttt{run\_base}] optional format string for grouping a workflow
+    run under a timestamped subdirectory; supports strftime-style tokens and
+    the literal token \texttt{\_\_MILLIS\_\_}.
+  \item[\texttt{remove\_dir}] documented as a configuration intent; in the
+    current implementation, task garbage collection is controlled primarily
+    by task reference counts and task flags rather than this key alone.
+  \item[\texttt{threads}] used by staging command generation for parallel
+    movement modes.
+\end{description}
+
+\begin{lstlisting}[style=ini, caption={Grouping a run under a timestamped subdirectory.}]
+[batch]
+scratch_dir_base=/tmp/dagon
+run_base=%Y%m%d-%H%M%S-__MILLIS__
+threads=4
+\end{lstlisting}
+
+\subsection{\texttt{[slurm]}}
+
+\begin{lstlisting}[style=ini]
+[slurm]
+partition=
+\end{lstlisting}
+
+The configured \texttt{partition} value is used when generating Slurm staging
+commands. Individual \texttt{SLURM} task objects may also receive Slurm
+parameters directly at construction time (\Cref{ch:backends}):
+
+\begin{lstlisting}
+task = DagonTask(
+    TaskType.SLURM, "model", "./run_model.sh",
+    partition="compute", ntasks=16, time="02:00:00",
+)
+\end{lstlisting}
+
+\subsection{LLM Provider Sections}
+\label{sec:config-llm}
+
+\texttt{TaskType.LLM} reads an OpenAI-compatible provider configuration from
+a section named \texttt{[llm.<name>]}; an arbitrary number of provider
+sections may coexist:
+
+\begin{lstlisting}[style=ini]
+[llm.example]
+endpoint=https://api.example.org
+api_key_env=DAGON_LLM_EXAMPLE_API_KEY
+model=example-chat-model
+\end{lstlisting}
+
+\texttt{api\_key\_env} names a runtime environment variable holding the
+credential; \texttt{api\_key} is available only for a local, ignored
+configuration file and must never be committed. \Cref{ch:llm-tasks}
+treats the full request/response model for this task type.
+
+\subsection{Web Task Authentication}
+
+\texttt{TaskType.WEB} authentication is supplied through
+\emph{environment-variable names} embedded in the task specification, such as
+\texttt{token\_env}, \texttt{username\_env}, \texttt{password\_env}, or
+\texttt{value\_env}. As with LLM provider keys, literal HTTP tokens,
+passwords, or API keys must never be placed in configuration samples or
+workflow source files (\Cref{ch:web-tasks}).
+
+\subsection{Cloud Provider Sections}
+
+\begin{lstlisting}[style=ini]
+[ec2]
+key=<aws_access_key_id>
+secret=<aws_secret_access_key>
+region=
+
+[digitalocean]
+key=
+
+[gce]
+key=
+secret=
+project=
+\end{lstlisting}
+
+Cloud tasks use Apache Libcloud through \texttt{dagon.cloud}. All values are
+provider-specific and must be treated as secrets; the sample placeholders are
+to be replaced only in local, non-committed configuration files. Install
+cloud dependencies with:
+
+\begin{lstlisting}[style=bash]
+python -m pip install "dagonstar[cloud]"
+\end{lstlisting}
+
+\subsection{Logging Sections}
+
+The sample configuration includes a standard Python
+\texttt{logging.config.fileConfig} setup:
+
+\begin{lstlisting}[style=ini]
+[loggers]
+keys=root
+
+[handlers]
+keys=stream_handler
+
+[formatters]
+keys=formatter
+
+[logger_root]
+level=DEBUG
+handlers=stream_handler
+
+[handler_stream_handler]
+class=StreamHandler
+level=DEBUG
+formatter=formatter
+args=(sys.stderr,)
+
+[formatter_formatter]
+format=%(asctime)s %(name)-12s %(levelname)-8s %(message)s
+\end{lstlisting}
+
+When a \texttt{Workflow} is constructed without an explicit \texttt{config}
+dictionary, it calls \texttt{fileConfig(config\_file)} internally; therefore,
+a file-based configuration \emph{must} include valid logging sections for the
+engine to initialize correctly.
+
+\section{Runtime Environment Variables}
+
+SKYCDS and Globus credentials are intentionally not hard-coded anywhere in
+configuration; the current implementation reads them exclusively from the
+process environment:
+
+\begin{lstlisting}[style=bash]
+export DAGON_SKYCDS_CLIENT_TOKEN=...
+export DAGON_SKYCDS_CATALOG_TOKEN=...
+export DAGON_SKYCDS_API_TOKEN=...
+export DAGON_SKYCDS_IP=...
+
+export DAGON_GLOBUS_TRANSFER_TOKEN=...
+\end{lstlisting}
+
+The current Globus transfer setup primarily uses the OAuth flow implemented
+in \texttt{GlobusManager.\_\_init\_\_}, which prompts the user to authorize a
+native application interactively.
+
+\section{Optional Integration Dependencies}
+
+\begin{lstlisting}[style=bash]
+python -m pip install "dagonstar[docker]"
+python -m pip install "dagonstar[globus]"
+python -m pip install "dagonstar[api]"
+python -m pip install "dagonstar[all]"
+\end{lstlisting}
+
+\section{Configuration as a Layered Override Mechanism}
+
+It is worth being explicit about the precedence relationship between the two
+configuration-loading paths \Cref{ch:configuration} introduced --- the
+file-based \texttt{config\_file} path and the in-memory \texttt{config}
+dictionary --- because conflating them is a frequent source of confusion
+when a workflow's behavior unexpectedly diverges from what a committed
+\texttt{dagon.ini} appears to specify.
+
+When a \texttt{Workflow} is constructed with an explicit \texttt{config}
+dictionary, that dictionary is used \emph{in its entirety}, and
+\texttt{config\_file} --- even if also supplied, or left at its default
+value of \texttt{"dagon.ini"} --- is not consulted at all for any section.
+This is not a partial override or a merge of the two sources; it is a
+complete substitution. The practical consequence, already exploited
+throughout the LLM, Web, and Native task lessons (\Cref{ch:llm-tasks,ch:web-tasks,ch:native-tasks}),
+is that an in-memory \texttt{config} dictionary must itself be \emph{complete}
+with respect to every section the workflow's tasks will need --- a runtime-
+constructed \texttt{llm.local\_mock} section is of no help if the same
+in-memory dictionary omits the \texttt{[batch]} section the workflow's
+\texttt{BATCH} producer task requires, since there is no fallback to the
+INI file's corresponding section once the in-memory path has been chosen.
+
+\begin{cautionbox}
+This all-or-nothing semantics also explains a subtlety in the logging
+behavior noted earlier in this chapter: \texttt{fileConfig(config\_file)} is
+invoked only in the file-based path. A workflow constructed with an explicit
+\texttt{config} dictionary does not automatically configure Python's
+logging subsystem; if a workflow author wants both an in-memory
+configuration and properly initialized logging, the logging setup must be
+performed separately, before workflow construction, using the standard
+library's \texttt{logging} module directly.
+\end{cautionbox}
+
+\section{Auditing a Configuration File for Reproducibility}
+
+\Cref{ch:configuration} closes, in its final section, with a list of
+configuration rules for reproducible science; it is useful to turn that list
+into an explicit auditing procedure a researcher can apply to an existing,
+inherited \texttt{dagon.ini} before relying on it.
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{Locate every secret-bearing key.} Search the file for
+    \texttt{key}, \texttt{secret}, \texttt{api\_key} (as opposed to
+    \texttt{api\_key\_env}), and \texttt{password}; any non-empty,
+    non-placeholder value found should be treated as a credential leak and
+    rotated, not merely removed from the file.
+  \item \textbf{Confirm the service is disabled unless genuinely needed.}
+    Check \texttt{[dagon\_service] use}; for the overwhelming majority of
+    single-researcher, single-machine workflows discussed in this book,
+    this should read \texttt{False} (\Cref{sec:service-architecture}).
+  \item \textbf{Verify the scratch base has adequate, durable storage.} As
+    \Cref{ch:getting-started} cautioned, a default of \texttt{/tmp/} is
+    convenient for short tutorial runs but unsuitable for any workflow
+    relying on checkpoint reuse across sessions.
+  \item \textbf{Cross-check every \texttt{[llm.<name>]} and Web-task
+    \texttt{*\_env} reference against the deployment environment.} A
+    provider section naming \texttt{api\_key\_env=DAGON\_RESEARCH\_LLM\_KEY}
+    is only as reproducible as the documentation, external to the
+    repository, recording that this environment variable must be set
+    before the workflow can run --- confirm such documentation exists.
+  \item \textbf{Confirm the logging sections are present and valid} if the
+    workflow does not supply an in-memory \texttt{config} dictionary,
+    per the previous section's discussion of \texttt{fileConfig} behavior.
+\end{enumerate}
+
+\begin{practicebox}
+This auditing procedure is deliberately framed as something a researcher
+does \emph{once}, when first inheriting or reviewing a workflow's
+configuration, and then records as part of the workflow's own documentation
+--- precisely the discipline \Cref{ch:configuration}'s closing section asks
+for when it distinguishes operational secrets from reproducibility
+metadata. An audit that is performed but never written down provides no
+benefit to the next researcher who needs to run the same workflow.
+\end{practicebox}
+
+\section{Configuration Sections Not Yet Exercised in This Book}
+
+For completeness, and because Appendix~C consolidates every section into a
+single reference document, it is worth noting explicitly which
+configuration sections this book's worked examples do \emph{not} exercise,
+so that a reader does not mistake their absence from the lesson chapters for
+an absence from the engine itself. The cloud provider sections
+(\texttt{[ec2]}, \texttt{[digitalocean]}, \texttt{[gce]}) and the
+\texttt{[dagon\_ip]} section fall into this category: \texttt{CLOUD} tasks
+are described architecturally in \Cref{ch:architecture} and referenced in
+the backend-selection guidance of \Cref{ch:backends}, but, consistent with
+this book's local-first verification philosophy
+(\Cref{ch:examples-catalog}), no worked, runnable cloud example is given,
+because doing so responsibly would require a live, billable cloud account
+that cannot be assumed of every reader. A researcher who needs to configure
+a cloud provider section should treat the placeholders in Appendix~C as a
+starting structural template, to be completed and verified against the
+target provider's own current documentation and credential model rather
+than against this book, since provider-specific authentication mechanisms
+are, by their nature, outside the scope of what the DAGonStar documentation
+itself specifies.
+
+\section{Configuration Rules for Reproducible Science}
+
+\begin{practicebox}
+For scientific workflows, configuration is itself part of the scientific
+record and should be versioned with care:
+\begin{itemize}[leftmargin=1.4em]
+  \item commit safe templates such as \texttt{dagon.ini.sample};
+  \item never commit real secrets;
+  \item record the configuration values that affect scientific
+    reproducibility --- scratch layout, model parameters, container images,
+    cloud instance types, and Slurm resource requests;
+  \item keep operational secrets strictly separate from reproducibility
+    metadata, e.g.\ by referencing environment-variable \emph{names} in
+    versioned configuration while the variable \emph{values} live only in
+    the runtime environment.
+\end{itemize}
+\end{practicebox}
+
+The full, consolidated configuration reference is reproduced in Appendix~C
+for use as a standing lookup table while authoring workflows.
