@@ -567,7 +567,13 @@ async function applyTheme(file, T) {
   }
   xml = xml.replace(/<a:theme ([^>]*)name="[^"]*"/, `<a:theme $1name="${T.name}"`);
   zip.file(p, xml);
-  fs.writeFileSync(file, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+  // Repack for PowerPoint and cloud viewers: [Content_Types].xml first, no folder entries
+  // (OneDrive, SharePoint and PowerPoint Online can refuse packages that contain them).
+  const out = new JSZip();
+  const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
+  names.sort((a, b) => (a === "[Content_Types].xml" ? -1 : b === "[Content_Types].xml" ? 1 : 0));
+  for (const n of names) out.file(n, await zip.file(n).async("nodebuffer"), { createFolders: false });
+  fs.writeFileSync(file, await out.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
 }
 
 const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "");
