@@ -1,0 +1,5 @@
+type: ApptainerTask True
+build: apptainer build docker://python:3.12-slim
+exec flags: ['--overlay', '--bind', '--bind', '--pwd']
+image file: .sif
+prebuilt SIF rebuilt: False

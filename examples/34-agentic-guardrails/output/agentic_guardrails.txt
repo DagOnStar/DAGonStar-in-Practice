@@ -1,0 +1,4 @@
+action checks: {'declared': 'allowed', 'undeclared': 'undeclared_tool', 'escape': 'path_escape', 'uri': 'workflow_uri_injection'}
+tools used: ['inspect_records', 'repair_records'] | accepted: True
+adversarial: FAILED | guardrail_blocked | tool calls: 0
+result published: False

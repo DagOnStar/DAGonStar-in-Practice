@@ -1,0 +1,5 @@
+generated: ['fetch', 'summary_NAP', 'summary_CAP', 'summary_ISC', 'merge']
+  {'max_wind_m_s': 5.0, 'mean_temperature_c': 15.5, 'records': 4, 'station': 'NAP'}
+  {'max_wind_m_s': 8.0, 'mean_temperature_c': 16.75, 'records': 4, 'station': 'CAP'}
+  {'max_wind_m_s': 6.0, 'mean_temperature_c': 15.75, 'records': 4, 'station': 'ISC'}
+report: {'max_wind_m_s': 8.0, 'stations': ['CAP', 'ISC', 'NAP'], 'windiest': 'CAP'}

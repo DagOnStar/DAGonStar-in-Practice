@@ -1,0 +1,4 @@
+prevs before make_dependencies: []
+prevs after make_dependencies: ['fetch']
+staged copy: .dagon/inputs/Stations08/fetch/outputs/observations.csv
+result: CAP 16.75

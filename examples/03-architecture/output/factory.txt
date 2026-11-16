@@ -1,0 +1,22 @@
+checkpoint -> dagon.checkpoint.Checkpoint
+batch      -> dagon.batch.Batch
+slurm      -> dagon.batch.Slurm
+cloud      -> dagon.remote.CloudTask
+docker     -> dagon.docker_task.DockerTask
+kubernetes -> dagon.kubernetes_task.KubernetesTask
+apptainer  -> dagon.apptainer_task.ApptainerTask
+nomad      -> dagon.nomad_task.NomadTask
+llm        -> dagon.llm.LLMTask
+native     -> dagon.native.NativeTask
+web        -> dagon.web.WebTask
+faas       -> dagon.faas.FaaSTask
+iot        -> dagon.iot.IoTTask
+agentic    -> dagon.agentic.task.AgenticTask
+DagonTask(BATCH) builds Batch
+DagonTask(SLURM) builds Slurm
+every task is a Task and a thread: True
+a new task is READY
+statuses: READY WAITING RUNNING FINISHED FAILED
+data movers: DONTMOVE LINK COPY SCP HTTP HTTPS FTP SFTP GRIDFTP SKYCDS DYNOSTORE
+stager modes: NORMAL PARALLEL SLURM
+reference schema: workflow://

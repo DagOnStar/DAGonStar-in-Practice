@@ -1,0 +1,5 @@
+files: ['.dagon/inputs/Audit28/fetch/outputs/observations.csv', 'response.json']
+API key written anywhere in scratch: False
+serialised task: ['command', 'explicit_prevs', 'input_files', 'name', 'nexts', 'output_file', 'params', 'prevs', 'provider', 'status', 'type', 'working_dir']
+portable rehearsal id: portable-emulation
+rendered prompt starts: Flag anomalies in: | station,time_utc,temp

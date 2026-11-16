@@ -1,0 +1,6 @@
+same host, COPY -> cp -r
+same host, LINK -> ln -sf
+different hosts     -> SCP | uses student@10.0.0.1
+Globus endpoints    -> GRIDFTP | manager: ('ep-lab', 'ep-hpc', 'course-client', 'ep-relay')
+strict loop records failures: True
+modes: {'NORMAL': 0, 'PARALLEL': 1, 'SLURM': 2}

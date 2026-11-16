@@ -1,0 +1,3 @@
+Analysis.mean_CAP waits for: [('Acquisition', 'fetch')]
+result: CAP 16.75
+unresolved without DAG_TPS or the service: Dagon service is not available

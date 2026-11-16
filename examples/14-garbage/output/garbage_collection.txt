@@ -1,0 +1,4 @@
+remove_dir=False: references to fetch before run: 2
+  after run: references=0, folders=['fetch', 'mean_CAP', 'mean_NAP']
+remove_dir=True: references to fetch before run: 2
+  after run: references=0, folders=['fetch-removed', 'mean_CAP-removed', 'mean_NAP-removed']

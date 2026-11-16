@@ -1,0 +1,6 @@
+cwlVersion: v1.2 | class: Workflow
+steps: ['fetch', 'mean_ISC', 'notify']
+deterministic: True | scratch path exported: False
+mean_ISC inputs: ['after_fetch']
+notify inputs: ['after_mean_ISC']
+cwltool --validate: ok

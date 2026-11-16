@@ -1,0 +1,5 @@
+defaults: scope=task persist=True comment=beeond-fs
+rejected options: ['scope', 'mount_template', 'volume']
+comment flags: 1 | nodes: True
+task volume persisted: wrfout d01
+workflow volume shared: boundary

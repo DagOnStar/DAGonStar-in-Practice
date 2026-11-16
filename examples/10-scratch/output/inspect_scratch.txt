@@ -1,0 +1,11 @@
+files of the consumer task:
+   .dagon/context.sh
+   .dagon/inputs/Scratch10/fetch/outputs/observations.csv
+   .dagon/launcher.sh
+   .dagon/ssh_key
+   .dagon/ssh_key.pub
+   .dagon/stdout.txt
+   outputs/mean.txt
+stdout of the producer: copied 12 records
+launcher steps: Change the current directory to the working directory | Start staging in | Create the destination directory | Add the copy command | Wait for all sbatch jobs to complete | Invoke the command | Perform post process
+rewritten input: <task>/.dagon/inputs/Scratch10/fetch//outputs/observations.csv

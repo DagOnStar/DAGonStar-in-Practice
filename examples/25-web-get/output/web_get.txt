@@ -1,0 +1,4 @@
+type: WebTask | alert after: ['latest_CAP']
+body: {'station': 'CAP', 'time_utc': '2026-11-02T03:00:00Z', 'temperature_c': 17.5, 'wind': 13.61, 'units': 'nautical'}
+status: 200 | type: application/json | sha256: 62ebf6b5ecc9
+alert: gale warning

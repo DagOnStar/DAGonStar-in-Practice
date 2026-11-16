@@ -1,0 +1,189 @@
+\chapter{DAGonFS: An In-Memory Scratch File System}
+\label{app:dagonfs}
+
+Every DAGonStar task writes into a folder under the workflow's scratch
+directory, and every \texttt{workflow://} reference reads from one. These
+files are short-lived. They are produced, read by a few consumers and
+discarded. On a cluster the scratch directory usually lies on a shared
+persistent file system such as NFS or Lustre. Every small file then pays the
+metadata and durability costs of storage meant to last. DAGonFS (DAGon File
+System) keeps the scratch space in the aggregate memory of the job's MPI
+processes instead. It is the companion project of DAGonStar, and this
+appendix accompanies course deck~A1.
+
+\section{What DAGonFS Is}
+
+DAGonFS is an \emph{ad-hoc, in-memory, MPI-distributed} file system exposed
+through FUSE. One executable, \texttt{dagonfs}, mounts a directory whose file
+contents are spread across the RAM of a set of MPI ranks. It provides no
+durable storage: when the volume is unmounted, its contents are gone.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Model & Mount points & Who serves requests \\
+\midrule
+client-server (default) & one, on rank 0 & rank 0 holds the namespace;
+  ranks $1\ldots P-1$ store blocks \\
+peer-to-peer & \texttt{<root>/<rank>} & every peer serves its mount and
+  replicates namespace changes \\
+\bottomrule
+\end{tabular}
+\caption{The two deployment models of DAGonFS, chosen per volume at run time.}
+\label{tab:dagonfs-models}
+\end{table}
+
+The model is a run-time property, selected with \texttt{--model}, the
+\texttt{dagonfs\_model} key of \texttt{DAGonFS.ini}, or the C++ and Python
+volume APIs. Use client-server when every task runs on the node of rank~0,
+and peer-to-peer when tasks run on several nodes, each using the mount point
+of a rank on its own node.
+
+\section{Architecture}
+
+A task's POSIX call enters the Linux VFS and reaches DAGonFS through
+\texttt{/dev/fuse}. The file system keeps a \emph{namespace} of directories,
+files and links, and a front-end buffer for each open file: the buffer is
+loaded on \texttt{open} and stored on \texttt{flush} or \texttt{close}. A
+\emph{data plane} moves block slices between ranks with non-blocking
+point-to-point MPI messages and no collectives, so several ranks can transfer
+at once. A \emph{control plane} sends one request message per rank. In
+peer-to-peer mode a \emph{replayer} thread applies the namespace changes
+made on other peers. Advisory locks (\texttt{fcntl}, \texttt{lockf},
+\texttt{flock}) are served cluster-wide by one lock table on rank~0.
+
+\begin{definitionbox}{Close-to-open consistency}
+A write is acknowledged by every rank before \texttt{close} returns. A file
+written and closed on one rank can therefore be read on any other rank as
+soon as \texttt{close} returns. This matches DAGonStar's model exactly: a
+consumer starts only after its producer has finished, and so after the
+producer has closed its outputs.
+\end{definitionbox}
+
+\section{The Block Layout}
+
+File contents are divided into blocks of $B = 128$\,KiB. A file of $S$ bytes
+occupies $N = \lceil S/B \rceil$ blocks. Rank $r$ of $P$ owns
+\[
+c_r = \left\lfloor N/P \right\rfloor + [\,r < N \bmod P\,]
+\]
+consecutive blocks, starting at block $d_r = \sum_{q<r} c_q$. The layout
+depends on $S$ and $P$ alone, so every rank can compute where any byte lives
+without asking anyone. Lecture~A1 computes it for five sizes and checks four
+invariants: every block has an owner, ranks differ by at most one block, rank~0
+holds the most, and if rank~0 holds nothing, no rank does.
+
+\lstinputlisting[caption={The DAGonFS block layout (\texttt{examples/A1-dagonfs/block\_layout.py}).},label={lst:block-layout}]{../../examples/A1-dagonfs/block_layout.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{block\_layout.py}.}]{../../examples/A1-dagonfs/output/block_layout.txt}
+
+A 564-byte file, the size of the course dataset, fits in one block on rank~0.
+A 128\,MiB file is split into 1024 blocks, 256 per rank.
+
+\section{A Workflow on a DAGonFS Volume}
+
+DAGonStar and DAGonFS divide the work cleanly. DAGonStar schedules tasks,
+resolves \texttt{workflow://} references, checkpoints and moves the final
+data. DAGonFS answers POSIX calls inside its mount and never parses a
+\texttt{workflow://} URI. The integration has four steps:
+\begin{enumerate}[leftmargin=1.6em]
+  \item start the volume before DAGonStar creates any task folder;
+  \item set the workflow's \texttt{scratch\_dir\_base} to the mount point;
+  \item run the workflow;
+  \item copy the results to persistent storage (stage-out) before the volume
+    is unmounted.
+\end{enumerate}
+
+The Python class \texttt{dagonfs.Volume(root, model, ranks, executable,
+mpirun, mpirun\_args, local\_ranks, \ldots)} launches \texttt{mpirun} and
+waits for the mount on \texttt{start}. It unmounts and waits for the ranks on
+\texttt{stop}. Used as a context manager, it ties the life of the scratch
+space to one block of the workflow script.
+
+\lstinputlisting[caption={A DAGonStar workflow whose scratch lives on DAGonFS (\texttt{examples/A1-dagonfs/dagonfs\_workflow.py}).},label={lst:dagonfs-workflow}]{../../examples/A1-dagonfs/dagonfs_workflow.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{dagonfs\_workflow.py} on a host without DAGonFS.}]{../../examples/A1-dagonfs/output/dagonfs_workflow.txt}
+
+The recorded output comes from a laptop with no FUSE~3 and no DAGonFS build.
+There the script prints the command it would launch, then runs the same
+workflow on a temporary directory, so the workflow itself is always tested.
+On a Linux node with MPI and FUSE~3, set \texttt{DAGONFS\_PYTHON} to the
+\texttt{python} folder of the DAGonFS checkout and \texttt{DAGONFS} to the
+executable, and the same script mounts a four-rank client-server volume.
+
+\begin{cautionbox}[Stage out before unmounting]
+Nothing survives the volume. A result that is needed after the workflow must
+be copied to persistent storage inside the \texttt{with} block, as the
+example does with \texttt{report.txt}. The last line of the output is read
+\emph{after} the volume is gone, from the persistent copy.
+\end{cautionbox}
+
+\section{Building and Running}
+
+DAGonFS requires CMake~3.20 or later, a C++23 compiler, MPI (Open MPI~4.1 or
+later; \texttt{MPI\_THREAD\_MULTIPLE} for peer-to-peer) and libfuse~3.3 or
+later.
+
+\begin{lstlisting}[style=bash]
+git clone https://github.com/DagOnStar/DAGonFS.git
+cd DAGonFS
+cmake -S . -B build -DUSE_MPI=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+
+mpirun -np 4 build/dagonfs --model client-server -f /tmp/dagonfs
+mpirun -np 4 build/dagonfs --model peer-to-peer  -f /tmp/dagonfs  # /tmp/dagonfs/0..3
+fusermount3 -u /tmp/dagonfs                                      # stop the volume
+\end{lstlisting}
+
+\section{Performance}
+
+The project compared DAGonFS with the NFS home directory of a cluster used as
+the scratch space of real DAGonStar workflows (four ranks on one node,
+November~2026). \Cref{tab:dagonfs-perf} reports the medians.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Workload (median, one node) & NFS & client-server & peer-to-peer \\
+\midrule
+File creation (ops/s) & 67 & 25\,532 & 26\,943 \\
+4\,KiB files written (files/s) & 96 & 5\,923 & 7\,946 \\
+DAGonStar, $8\times128$\,MiB, shell tasks (s) & 64.4 & 33.9 & 34.8 \\
+DAGonStar, $8\times128$\,MiB, Python tasks (s) & 62.1 & 31.3 & 39.4 \\
+DAGonStar, $2000\times8$\,KiB (s) & 257.6 & 24.7 & 28.2 \\
+\bottomrule
+\end{tabular}
+\caption{DAGonFS against NFS as DAGonStar scratch space (from the DAGonFS
+documentation).}
+\label{tab:dagonfs-perf}
+\end{table}
+
+The large-file dataflow runs about 1.9 times faster than on NFS. The same
+dataflow with Python tasks runs about 2.0 times faster, and the small-file
+dataflow about 10.4 times faster. The gain is largest where it was expected:
+many small files, whose cost on NFS is dominated by metadata operations.
+Across two nodes DAGonFS stays 1.9 to 10.3 times faster. Unlike a node-local
+\texttt{tmpfs}, it presents one namespace to tasks on different nodes, and
+its capacity is the memory of the whole allocation.
+
+\section{When to Use It}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Use DAGonFS for intermediate data that many tasks produce and
+    consume within one allocation, especially many small files.
+  \item Size the volume: the scratch data of the running tasks must fit in
+    the memory of the ranks, alongside the tasks themselves.
+  \item Do not use it for results that must outlive the job. Stage them out.
+  \item Compare it with BeeOND (\Cref{ch:hpc-storage}). BeeOND uses the nodes'
+    local disks and persists contents into task folders. DAGonFS uses memory
+    and leaves stage-out to the workflow.
+\end{itemize}
+
+\begin{exercise}
+Using the block-layout formula, compute $N$, $c_r$ and $d_r$ for a 1\,GiB file
+on six ranks. Then estimate the memory each rank needs to hold the eight
+128\,MiB intermediate files of the benchmark workflow at once.
+\end{exercise}

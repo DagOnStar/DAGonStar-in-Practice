@@ -1,0 +1,132 @@
+\chapter{Resilient Execution: Collection, Failures, Sweeps and Ensembles}
+\label{ch:resilient}
+
+Part~II of the course (Lectures~13--24) turns from building graphs to running
+them well. Earlier chapters have treated staging, checkpointing, native tasks,
+asynchronous runs and meta-workflows (\Cref{ch:lessons-05-07,ch:meta-async,ch:native-tasks}).
+This chapter covers the remaining lectures of Part~II: the scratch garbage
+collector (Lecture~14), failure propagation (Lecture~16), native bindings
+(Lecture~19), workflows generated from parameters (Lectures~20--21), dry runs
+and portable emulation (Lecture~23), and the resumable ensemble that closes
+the part (Lecture~24). Lecture~24 also exposes the one trap of name-based
+checkpoints.
+
+\section{Reference Counting and Garbage Collection}
+
+Every \texttt{workflow://} reference increments the reference count of its
+producer. The count is decremented after each consumer has executed. When it
+reaches zero and the configuration sets \texttt{remove\_dir = True}, the
+producer's folder is handed to the garbage collector.
+
+\lstinputlisting[caption={Lecture 14: reference counting and collection (\texttt{examples/14-garbage/garbage\_collection.py}).},label={lst:garbage}]{../../examples/14-garbage/garbage_collection.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 14.}]{../../examples/14-garbage/output/garbage_collection.txt}
+
+\begin{cautionbox}[Collection renames, it does not delete]
+The collector renames a folder to \texttt{<name>-removed} and records the new
+path in the checkpoint. Nothing is deleted, so a mistake can be undone. The
+cost is that disk space is freed only when someone removes the
+\texttt{*-removed} folders after checking the results. Sinks, tasks without
+consumers, are collected too.
+\end{cautionbox}
+
+\section{Failures and What They Stop}
+
+A failed task stops exactly the part of the graph that depends on it.
+Independent branches finish, and a resumed run repeats only what did not
+complete.
+
+\lstinputlisting[caption={Lecture 16: a failure and the resumed run (\texttt{examples/16-failures/fail\_and\_resume.py}).},label={lst:failures}]{../../examples/16-failures/fail_and_resume.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 16.}]{../../examples/16-failures/output/fail_and_resume.txt}
+
+In the first run \texttt{qc} fails, and \texttt{plot}, which depends on it,
+is never started. \texttt{archive}, which depends only on \texttt{fetch},
+finishes. The second run resumes from the checkpoint: \texttt{fetch} and
+\texttt{archive} are reused, and only \texttt{qc} and \texttt{plot} execute.
+This is the local-failure property that later chapters rely on for IoT
+actuations and agentic tasks (\Cref{ch:faas-iot-agentic}).
+
+\section{Native Bindings}
+
+Native tasks (\Cref{ch:native-tasks}) bind workflow files and scalar values
+to the parameters of an importable Python function. Lecture~19 shows three
+properties of the binding: scalar values and environment variables reach the
+function; an exception inside the function fails the task and its traceback is
+kept in \texttt{.dagon/native\_stderr.txt}; and bindings that do not match the
+function's signature are rejected when the task is constructed, before
+anything runs.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 19 (\texttt{examples/19-native-bindings/native\_bindings.py}).}]{../../examples/19-native-bindings/output/native_bindings.txt}
+
+\section{Workflows Generated from Parameters}
+
+A parameter sweep is a loop that builds tasks. Lecture~20 generates one summary task per
+station and a \texttt{merge} task whose references are produced by the same loop.
+
+\lstinputlisting[caption={Lecture 20: a sweep over stations (\texttt{examples/20-sweep/parameter\_sweep.py}).},label={lst:sweep}]{../../examples/20-sweep/parameter_sweep.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 20.}]{../../examples/20-sweep/output/parameter_sweep.txt}
+
+An ensemble is a sweep over perturbations of one input. Lecture~21 builds five
+members whose temperatures are offset by $-1.0, -0.5, 0, 0.5, 1.0$\,\textdegree C
+and a statistics task that waits for all of them.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 21 (\texttt{examples/21-ensemble/ensemble.py}).}]{../../examples/21-ensemble/output/ensemble.txt}
+
+The ensemble mean, 16.0\,\textdegree C, and the spread, 0.707\,\textdegree C
+(the population standard deviation of the five member means), can both be
+checked by hand.
+
+\section{Dry Runs and Portable Emulation}
+
+Two workflow modes let a graph be exercised without its real cost. In a
+\emph{dry run} (\texttt{set\_dry}) launchers are written but not executed, so
+the folders and scripts can be inspected. Under \emph{portable emulation}
+(\texttt{portable\_emulation=True}) scheduler and container tasks run their
+portable command locally with \texttt{bash -c}. References are rewritten to
+the producers' folders without staging. LLM, FaaS and IoT tasks use their
+emulated or mock providers.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 23 (\texttt{examples/23-dry-portable/dry\_and\_portable.py}).}]{../../examples/23-dry-portable/output/dry_and_portable.txt}
+
+\section{A Resumable Ensemble and the Stale-Name Trap}
+
+Lecture~24 runs the ensemble with a checkpoint file three times, then once
+more with a fresh checkpoint.
+
+\lstinputlisting[caption={Lecture 24: a resumable ensemble (\texttt{examples/24-resumable-ensemble/resumable\_ensemble.py}).},label={lst:resumable}]{../../examples/24-resumable-ensemble/resumable_ensemble.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 24.}]{../../examples/24-resumable-ensemble/output/resumable_ensemble.txt}
+
+\begin{cautionbox}[Name-based reuse]
+The third run doubles every offset but keeps the task names. Batch and native
+checkpoints are keyed by \texttt{<workflow>.<task>} and are reused when the
+recorded exit code is 0 and the folder still exists. They do not check whether
+the command changed, so the third run reports the old spread, 0.707. Only a
+fresh checkpoint gives the correct value, 1.414. The rule to remember is that
+\emph{a changed command needs a new name or a new checkpoint}.
+FaaS, IoT and agentic tasks avoid this trap by checking content: a
+specification hash, output checksums, or a full identity digest
+(\Cref{ch:faas-iot-agentic}).
+\end{cautionbox}
+
+\section{Chapter Summary}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Reference counts decide when a producer's folder may be collected,
+    and collection renames rather than deletes.
+  \item A failure stops only its descendants, and a resume repeats only
+    unfinished work.
+  \item Sweeps and ensembles are loops that build graphs, and their fan-in
+    tasks are ordinary consumers.
+  \item Dry runs and portable emulation rehearse a workflow without its cost.
+  \item Name-based checkpoints are fast and simple but blind to changed
+    commands.
+\end{itemize}
+
+\begin{exercise}
+Modify the resumable ensemble so that each member's task name contains its
+offset (for example \texttt{member\_m1.0}). Run the three-run sequence again
+and explain why the trap disappears.
+\end{exercise}

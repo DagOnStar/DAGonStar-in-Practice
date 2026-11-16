@@ -1,0 +1,2 @@
+dry run: FINISHED | folder holds only ['.dagon']
+portable: Slurm FINISHED | result: ISC 15.75

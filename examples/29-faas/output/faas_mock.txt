@@ -1,0 +1,5 @@
+type: FaaSTask | after: ['prepare']
+result: {'beaufort': 4}
+the file travels as a descriptor: ['checksum', 'kind', 'media_type', 'path', 'reference', 'size_bytes', 'transport']
+records: ['faas_provider_metadata.json', 'faas_request.json', 'faas_response.json', 'faas_spec.json']
+provider calls on re-execution: 0

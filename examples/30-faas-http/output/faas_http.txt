@@ -1,0 +1,5 @@
+status: FINISHED | result: {'mean': 16.0, 'n': 3}
+provider metadata keys: ['service', 'status_code']
+HTTP calls served: [('POST', '/invoke')]
+rejected: Unknown FaaS provider: lambda-typo
+cloud SDKs imported: none

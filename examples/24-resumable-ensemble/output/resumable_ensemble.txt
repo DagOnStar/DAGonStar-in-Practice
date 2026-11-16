@@ -1,0 +1,4 @@
+run 1: {'ensemble_mean_c': 16.0, 'members': 5, 'spread_c': 0.707}
+run 2 (resumed, nothing re-runs): {'ensemble_mean_c': 16.0, 'members': 5, 'spread_c': 0.707}
+run 3 (new offsets, same names): {'ensemble_mean_c': 16.0, 'members': 5, 'spread_c': 0.707}
+fresh checkpoint with the new offsets: {'ensemble_mean_c': 16.0, 'members': 5, 'spread_c': 1.414}

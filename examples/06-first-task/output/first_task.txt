@@ -1,0 +1,5 @@
+before run: READY | working dir: None
+after run: FINISHED
+directory: <timestamp>-hello
+timestamp digits: 13
+greeting: Ciao from the Gulf

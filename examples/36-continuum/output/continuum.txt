@@ -1,0 +1,4 @@
+graph: edge(IoTTask) -> normalise(NativeTask) -> qc(AgenticTask) -> archive(FaaSTask)
+states: {'edge': 'FINISHED', 'normalise': 'FINISHED', 'qc': 'FINISHED', 'archive': 'FINISHED'}
+QC accepted: True | records: 4
+receipt: {'stored': True}

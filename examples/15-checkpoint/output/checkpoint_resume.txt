@@ -1,0 +1,4 @@
+checkpoint keys: ['Checkpoint15.fetch', 'Checkpoint15.mean', '_scratch_dir']
+fetch record: {'name': 'fetch', 'workflow': 'Checkpoint15', 'code': 0}
+executions: ['fetch', 'mean']
+second run reused the folders: [True, True]

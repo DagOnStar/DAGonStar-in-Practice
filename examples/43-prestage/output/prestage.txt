@@ -1,0 +1,4 @@
+ineligible requests refused: ['batch', 'beeond']
+ok run: FINISHED | marker before sbatch: True | verified inputs: 1
+metadata is path-free: True
+bad run: FAILED | phase: staging | sbatch called: False

@@ -1,0 +1,86 @@
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+Computational environmental science increasingly depends on the orchestration
+of heterogeneous resources: numerical models compiled for HPC clusters, data
+preprocessing and post-processing scripts, container images that freeze a
+fragile scientific software stack, cloud instances rented for a single
+forecast cycle, and --- more recently --- AI services consumed through web
+APIs for summarization, anomaly detection, or decision support. The challenge
+this book addresses is not how to write any one of these components, but how
+to make their \emph{composition} explicit, reproducible, portable, and
+auditable.
+
+\emph{DAGonStar} answers this challenge with a deliberately small abstraction:
+a workflow is a directed acyclic graph (DAG) of tasks, and a task is a Python
+object that executes a command --- local, remote, containerized,
+scheduler-submitted, an HTTP request, an LLM completion, or an importable
+Python function --- in a particular environment. This minimalism is the
+engine's central design virtue. It keeps workflow authoring close to ordinary
+Python, while still providing the scientific guarantees that ad hoc shell
+scripts cannot: explicit dependency graphs, automatic data staging, cycle
+detection, checkpointing, and a uniform mechanism --- the \texttt{workflow://}
+schema --- for expressing that one task consumes a file produced by another.
+
+\paragraph{How this book is organized.}
+The book accompanies a course of 48 lectures plus one appendix lecture. Each
+lecture has a slide deck of 30 slides (\texttt{en/lectures/}), speaker notes
+(\texttt{en/notes/}) and one or more runnable examples
+(\texttt{examples/NN-topic/}). Theory and hands-on work are not separated:
+every lecture introduces a concept and runs it immediately. The chapters
+group the lectures into four parts, and \Cref{tab:course-map} shows where
+each lecture is treated.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lp{0.47\linewidth}p{0.30\linewidth}@{}}
+\toprule
+\textbf{Lectures} & \textbf{Topics} & \textbf{Chapters} \\
+\midrule
+01--05 & Workflows, script vs DAG, architecture, environment, configuration &
+  \ref{ch:introduction}--\ref{ch:getting-started}, \ref{ch:configuration} \\
+06--10 & First task, DAGs, dataflow, cycles, scratch folders &
+  \ref{ch:lessons-01-02}, \ref{ch:schema}, \ref{ch:lessons-03-04} \\
+11--12 & Inspection, station pipeline & \ref{ch:course-pipeline} \\
+13, 15 & Staging, checkpoints & \ref{ch:lessons-05-07} \\
+14, 16, 19--21, 23--24 & Garbage collection, failures, bindings, sweeps,
+  ensembles, dry runs & \ref{ch:resilient} \\
+17, 22 & Asynchronous runs, meta-workflows & \ref{ch:meta-async} \\
+18 & Native tasks & \ref{ch:native-tasks} \\
+25--28 & Web and LLM tasks & \ref{ch:web-tasks}, \ref{ch:llm-tasks} \\
+29--36 & FaaS, IoT, agentic tasks, continuum & \ref{ch:faas-iot-agentic} \\
+37, 41 & Docker, Slurm & \ref{ch:backends} \\
+38--40, 42--44 & Apptainer, orchestrators, remote and cloud, BeeOND,
+  pre-staging, movers & \ref{ch:hpc-storage} \\
+45--48 & FAIR, CWL, operations, capstone & \ref{ch:fair-cwl} \\
+A1 & DAGonFS & Appendix~\ref{app:dagonfs} \\
+\bottomrule
+\end{tabular}
+\caption{Course map: lectures and the chapters that treat them.}
+\label{tab:course-map}
+\end{table}
+
+Chapters on external software (\Cref{ch:external-software}), the
+environmental case study (\Cref{ch:case-study}), the examples catalog
+(\Cref{ch:examples-catalog}) and the synthesis (\Cref{ch:synthesis}) connect
+the lectures to research practice. Appendices~A--D collect reference
+material: the public API, developer practices, the configuration model and
+checkpoint semantics. Appendix~E presents DAGonFS.
+
+\paragraph{Intended audience.}
+This book is written for graduate students, researchers, and research software
+engineers in computational and environmental science who need to compose
+heterogeneous computational pipelines reproducibly. Working knowledge of
+Python and of basic Unix/HPC concepts (shells, SSH, job schedulers) is
+assumed; no prior exposure to workflow engines is required.
+
+\paragraph{A note on fidelity to the software.}
+Every course example is included in this book with \texttt{lstinputlisting}
+from the course repository, and so is its recorded output. The examples were
+written for and checked against DAGonStar~2.9.4
+(\url{https://github.com/DagOnStar/dagonstar}). The script
+\texttt{tools/run\_examples.py} runs them all again and reports any output
+that differs from the recorded one. Where the software has a limitation,
+such as name-based checkpoint reuse (\Cref{ch:resilient}), the book shows it
+rather than smoothing it away.

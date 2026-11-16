@@ -1,0 +1,4 @@
+type: DockerTask | client created: True
+wrapped: docker exec -t c0ffee sh -c 'cd '"'"'/work dir'"'"'; { python regrid.py
+remote endpoint: ssh://student@192.0.2.10:2200 | pull: False
+live run skipped (set DAGON_LIVE_DOCKER=1 with a running daemon)

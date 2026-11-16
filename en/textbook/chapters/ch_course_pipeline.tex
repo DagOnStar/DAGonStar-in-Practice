@@ -1,0 +1,141 @@
+\chapter{From Scripts to a Station Pipeline}
+\label{ch:course-pipeline}
+
+The preceding chapters introduced DAGonStar's abstractions one at a time. This
+chapter assembles them into the reference workflow of the course: the Gulf of
+Naples station pipeline of Lecture~12. It also closes Part~I by showing the two
+operations that make a workflow an object one can reason about, rather than a
+program one can only run: serialisation (Lecture~11) and comparison with the
+script it replaces (Lecture~02).
+
+Every listing in this chapter is included verbatim from the course
+repository. The command that runs it is given next to it, and its recorded
+output follows. The script \texttt{tools/run\_examples.py} re-runs every
+example and compares its output with the recorded one, so what the book shows
+is what the code does.
+
+\section{The Course Dataset}
+
+All examples in Parts~I and~II share one small dataset: twelve hourly
+observations from three coastal stations of the Gulf of Naples --- Naples
+(\texttt{NAP}), Capri (\texttt{CAP}) and Ischia (\texttt{ISC}) --- on
+2~November~2026. Each record carries a station code, a UTC time, an air
+temperature in degrees Celsius and a wind speed in metres per second. The
+synthetic dataset is stored in \texttt{examples/data/gulf\_of\_naples.csv}, and
+the helpers in \texttt{examples/common/course.py} copy it into each workflow's
+\texttt{fetch} task. Every example therefore starts from the same bytes,
+without a download, and runs in a fresh temporary scratch directory that it
+removes when it ends.
+
+\begin{practicebox}
+A teaching dataset should be small enough to check by hand and rich enough
+to exercise every mechanism. Four records per station allow a mean to be
+verified mentally (for Naples, $62/4 = 15.5$\,\textdegree C), and three stations
+are the smallest number for which fan-out and fan-in are visibly different
+from a chain.
+\end{practicebox}
+
+\section{A Script and a DAG}
+
+Lecture~02 computes the three station means twice: once as a plain Python
+script and once as a DAGonStar workflow with one task per station and a
+report that waits for all three.
+
+\lstinputlisting[caption={Lecture 02: the same analysis as a script and as a DAG (\texttt{examples/02-script-vs-dag/as\_dag.py}).},label={lst:as-dag}]{../../examples/02-script-vs-dag/as_dag.py}
+
+\begin{lstlisting}[style=bash]
+python examples/02-script-vs-dag/as_dag.py
+\end{lstlisting}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 02.}]{../../examples/02-script-vs-dag/output/as_dag.txt}
+
+The two versions agree on the numbers. They differ in what each makes explicit. The
+script's order is an accident of how its lines were written. The DAG's order
+is derived from the \texttt{workflow://} references, so the three means are
+independent and may run concurrently, and the report's dependencies are
+listed by the engine (\texttt{report waits for: [...]}). The DAG also leaves
+behind one folder per task with its launcher and log. The script leaves only
+its result.
+
+\section{Inspecting a Workflow as Data}
+
+Lecture~11 treats a workflow as a document. \texttt{as\_json()} produces a
+dictionary with the keys \texttt{name}, \texttt{id}, \texttt{host} and
+\texttt{tasks}, and a new \texttt{Workflow} can be rebuilt from it with
+\texttt{jsonload}. Timing and lifecycle events are read from the same
+object.
+
+\lstinputlisting[caption={Lecture 11: serialise, reload, time and observe (\texttt{examples/11-inspect/inspect\_workflow.py}).},label={lst:inspect}]{../../examples/11-inspect/inspect_workflow.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 11.}]{../../examples/11-inspect/output/inspect_workflow.txt}
+
+\begin{definitionbox}{Explicit edges in the JSON form}
+A reference inside a command is rediscovered when the reloaded workflow
+parses its commands again. An edge added with \texttt{add\_dependency\_to()}
+has no textual trace in any command. It survives the round trip only because
+\texttt{as\_json()} records it in \texttt{explicit\_prevs} and
+\texttt{make\_dependencies()} restores it. This is why the reloaded
+\texttt{plot} still waits for \texttt{count}.
+\end{definitionbox}
+
+\section{The Station Pipeline}
+
+The pipeline of Lecture~12 brings together every mechanism of Part~I. A
+\texttt{fetch} task produces the observations. Three station tasks compute
+the mean temperature and the maximum wind of each station, and a
+\texttt{report} task builds a table and names the windiest station.
+
+\lstinputlisting[caption={Lecture 12: the station pipeline (\texttt{examples/12-station-pipeline/station\_pipeline.py}).},label={lst:station-pipeline}]{../../examples/12-station-pipeline/station_pipeline.py}
+
+\begin{lstlisting}[style=bash]
+python examples/12-station-pipeline/station_pipeline.py
+\end{lstlisting}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 12.}]{../../examples/12-station-pipeline/output/station_pipeline.txt}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=10mm and 16mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=24mm, minimum height=9mm, font=\sffamily\small},
+  arr/.style={-{Stealth[length=2.4mm]}, thick, dagonblue}
+]
+  \node[task] (fetch) {fetch};
+  \node[task, right=of fetch] (cap) {summary\_CAP};
+  \node[task, above=of cap] (nap) {summary\_NAP};
+  \node[task, below=of cap] (isc) {summary\_ISC};
+  \node[task, right=of cap] (report) {report};
+  \foreach \s in {nap,cap,isc} { \draw[arr] (fetch) -- (\s); \draw[arr] (\s) -- (report); }
+\end{tikzpicture}
+\caption{The station pipeline: one producer, three independent consumers, one
+fan-in. Every edge is inferred from a \texttt{workflow://} reference.}
+\label{fig:station-pipeline}
+\end{figure}
+
+\subsection{Reading the Result}
+
+The table can be checked against the dataset by hand. Capri is the warmest
+station (16.75\,\textdegree C) and the windiest (8.0\,m/s). Naples is the
+coolest (15.50\,\textdegree C). The last line reports that five tasks ended,
+which matches the five nodes of \Cref{fig:station-pipeline}. A workflow that
+silently skipped a station would report four.
+
+\section{What Part~I Has Established}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item A workflow is a graph whose edges come from data references
+    (\Cref{ch:schema}) or explicit calls (\Cref{ch:lessons-01-02}).
+  \item Every task leaves a folder with a launcher, a log and its outputs
+    (\Cref{ch:lessons-03-04}).
+  \item The graph is validated before it runs, and cycles are reported with
+    the task involved (\Cref{ch:lessons-05-07}).
+  \item A workflow can be serialised, reloaded, timed and observed, so it can
+    be studied as data.
+\end{itemize}
+
+\begin{exercise}
+Add a fourth station, Pozzuoli (\texttt{POZ}), to the dataset helper and to
+the pipeline. Predict the new table before running the example, run it, and
+explain any difference between prediction and result.
+\end{exercise}

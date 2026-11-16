@@ -1,0 +1,449 @@
+\chapter{Large Language Model Tasks}
+\label{ch:llm-tasks}
+
+This chapter is the book's first sustained treatment of the engine's
+AI--HPC integration layer, and the conceptual core of the workshop abstract
+that motivates this textbook. \texttt{TaskType.LLM} invokes an
+OpenAI-compatible Chat Completions API \emph{as a workflow task}: a Large
+Language Model inference becomes a DAG node with the same dependency,
+staging, and provenance guarantees as a numerical simulation.
+
+\section{Design Goals}
+
+\texttt{TaskType.LLM} is intended for JSON request construction, local
+workflow data inputs, and response capture; notably, \textbf{it does not
+require the OpenAI Python package}. The task speaks the OpenAI-compatible
+Chat Completions HTTP surface directly, which means any provider exposing
+that surface --- not only OpenAI itself --- can be configured as a target.
+
+\section{Provider Configuration}
+
+Each provider has an INI section named \texttt{llm.<provider-name>}; any
+number of these sections may be configured simultaneously
+(\Cref{sec:config-llm}). \texttt{endpoint} is the provider base URL (or a
+full \texttt{/chat/completions} URL); \texttt{model} is the default model;
+credentials come from either \texttt{api\_key\_env} or \texttt{api\_key} ---
+the environment-variable form is preferred:
+
+\begin{lstlisting}[style=ini]
+[llm.research]
+endpoint=https://api.example.org
+api_key_env=DAGON_RESEARCH_LLM_KEY
+model=research-chat
+\end{lstlisting}
+
+\begin{cautionbox}
+Do not commit real API keys. The endpoint receives a \texttt{POST
+/v1/chat/completions} request unless its configured URL already ends in
+\texttt{/chat/completions}.
+\end{cautionbox}
+
+\section{Creating an LLM Task}
+
+The prompt is a JSON-compatible Chat Completions request. \texttt{params}
+supplies named values for \texttt{\{placeholder\}} strings anywhere in that
+JSON. The \texttt{model} value, if present in the request, overrides the
+provider default.
+
+\begin{lstlisting}[caption={Minimal LLM task construction.}]
+ask = DagonTask(
+    TaskType.LLM,
+    "summarize",
+    {"messages": [{"role": "user", "content": "Summarize {subject}."}], "temperature": 0.2},
+    provider="research",
+    params={"subject": "the experiment"},
+)
+\end{lstlisting}
+
+The prompt may instead be supplied as a JSON \emph{string}, which is useful
+when a script assembles the request dynamically with \texttt{json.dumps}.
+When a workflow is serialized, LLM tasks use \texttt{"type": "llm"} and
+retain the provider, parameters, input-file mapping, and output filename;
+loading that JSON elsewhere requires the named provider to be configured
+locally on the loading machine.
+
+\section{Workflow Input Files: Connecting Simulation Output to a Prompt}
+\label{sec:llm-input-files}
+
+\texttt{input\_files} attaches UTF-8 text produced by another task. Keys
+become prompt parameters; values use the ordinary \texttt{workflow://} form
+developed in \Cref{ch:schema}:
+
+\begin{lstlisting}
+input_files={"report": "workflow:///prepare/output/report.txt"}
+\end{lstlisting}
+
+This single line creates the \texttt{prepare} $\to$ \texttt{review}
+dependency, exactly as in any file-based task. Before the request is sent,
+the file is copied under
+\texttt{.dagon/inputs/<workflow>/<task>/...} inside the LLM task's
+directory, and its UTF-8 content replaces \texttt{\{report\}} in the prompt.
+An inline \texttt{workflow:///prepare/output/report.txt} reference written
+directly inside a prompt string is also parsed, staged, and replaced; using
+\texttt{input\_files} is recommended chiefly because it keeps longer prompts
+readable.
+
+\begin{cautionbox}
+Input paths must be relative to the producer task directory and cannot
+contain \texttt{..}. Binary files and remote-only producer files are
+\textbf{not} supported by this task type: the LLM task's file integration is
+deliberately restricted to local, UTF-8 text.
+\end{cautionbox}
+
+The full response JSON is written to \texttt{response.json} in the LLM
+task's working directory (or to the relative \texttt{output\_file} supplied
+to the task), so a downstream task can consume it via \texttt{workflow://}
+exactly as it would consume any other task's file output.
+
+\section{Worked Example: A Locally Verifiable LLM Workflow}
+
+The repository ships a complete, locally verifiable, credential-free example
+that this book reproduces in full, because it is the cleanest illustration
+of how an AI inference step is woven into an ordinary DAG.
+
+\begin{lstlisting}[caption={\texttt{llm\_workflow.py}: a self-contained, mock-backed LLM workflow.}]
+import json
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+from dagon import Workflow
+from dagon.task import DagonTask, TaskType
+
+
+class MockChatHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path != "/v1/chat/completions":
+            self.send_error(404)
+            return
+        request = json.loads(self.rfile.read(int(self.headers["Content-Length"])).decode("utf-8"))
+        content = request["messages"][-1]["content"]
+        payload = json.dumps({"choices": [{"message": {"role": "assistant", "content": "Mock summary: " + content}}]}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, _format, *_args):
+        pass
+
+
+def main():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), MockChatHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with tempfile.TemporaryDirectory(prefix="dagon-llm-lesson-") as scratch:
+            config = {
+                "batch": {"scratch_dir_base": scratch, "run_base": "", "threads": "1"},
+                "dagon_service": {"use": "False", "route": "http://localhost:57000"},
+                "ftp_pub": {"ip": "localhost"}, "slurm": {"partition": ""},
+                "llm.local_mock": {"endpoint": "http://127.0.0.1:%s" % server.server_port,
+                                   "api_key": "example-key-not-a-secret", "model": "mock-chat"},
+            }
+            workflow = Workflow("Lesson12", config=config)
+            produce = DagonTask(TaskType.BATCH, "prepare_report", "mkdir -p output; printf 'temperature increased by 1.2 C' > output/report.txt")
+            summarize = DagonTask(TaskType.LLM, "summarize_report",
+                {"messages": [{"role": "user", "content": "Summarize this report: {report}"}]},
+                provider="local_mock", input_files={"report": "workflow:///prepare_report/output/report.txt"})
+            workflow.add_task(produce)
+            workflow.add_task(summarize)
+            workflow.run()
+            print(Path(summarize.working_dir, "response.json").read_text(encoding="utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+\begin{lstlisting}[style=bash]
+python3 llm_workflow.py   # the listing above, saved to a file
+\end{lstlisting}
+
+The listing runs unchanged against DAGonStar~2.9.4. The course versions of
+the same mechanism are \texttt{examples/27-llm/llm\_task.py}
+(Lecture~27: templates, staged inputs, providers) and
+\texttt{examples/28-llm-audit/llm\_audit.py} (Lecture~28: what is recorded,
+and rehearsal with portable emulation).
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=20mm,
+  task/.style={rectangle, rounded corners, draw=dagonblue, very thick,
+    fill=blue!4, minimum width=34mm, minimum height=12mm, font=\sffamily\small, align=center},
+  ext/.style={rectangle, rounded corners, draw=dagonaccent, very thick,
+    fill=teal!6, minimum width=34mm, minimum height=12mm, font=\sffamily\small, align=center},
+  arr/.style={-{Stealth[length=2.6mm]}, thick, dagonblue}
+]
+  \node[task] (prep) {prepare\_report\\ \footnotesize writes \texttt{output/report.txt}};
+  \node[task, right=28mm of prep] (llm) {summarize\_report\\ \footnotesize \texttt{TaskType.LLM}};
+  \node[ext, right=22mm of llm] (api) {OpenAI-compatible\\ \footnotesize Chat Completions API};
+  \draw[arr] (prep) -- node[above,font=\sffamily\scriptsize]{\texttt{input\_files=\{report: workflow://...\}}} (llm);
+  \draw[arr] (llm) -- node[above,font=\sffamily\scriptsize]{POST /v1/chat/completions} (api);
+  \draw[arr] (api.south) .. controls +(0,-1.2) and +(2.2,-1.2) .. node[below,font=\sffamily\scriptsize]{JSON response} (llm.south);
+  \node[task, below=14mm of llm, text width=34mm] (resp) {\texttt{response.json}\\ \footnotesize available to downstream tasks via \texttt{workflow://}};
+  \draw[arr] (llm) -- (resp);
+\end{tikzpicture}
+\caption{An LLM task as a first-class DAG node: it consumes a producer's text
+output through the ordinary \texttt{workflow://} mechanism and exposes its
+JSON response as an ordinary, dependency-trackable task output.}
+\label{fig:llm-task-flow}
+\end{figure}
+
+\section{Walkthrough}
+
+\subsection{Step 1: Execute and Observe}
+
+The mock server implements only the minimal OpenAI-compatible
+\texttt{/v1/chat/completions} surface needed for the lesson, bound to
+\texttt{127.0.0.1} on an unused port, and is shut down automatically when the
+workflow completes. Expected output is a JSON completion of the shape:
+
+\begin{lstlisting}
+{"choices": [{"message": {"content": "Mock summary: Summarize this report: temperature increased by 1.2 C"}}]}
+\end{lstlisting}
+
+\subsection{Step 2: The Producer Task}
+
+\begin{lstlisting}
+produce = DagonTask(
+    TaskType.BATCH,
+    "prepare_report",
+    "mkdir -p output; printf 'temperature increased by 1.2 C' > output/report.txt",
+)
+\end{lstlisting}
+
+Its eventual file location is conceptually
+\texttt{<prepare\_report task directory>/output/report.txt} --- an absolute
+path generated only at runtime, and therefore never written directly into
+the LLM task's prompt, which would make the workflow non-portable.
+
+\subsection{Step 3: The JSON Request and File Attachment}
+
+\begin{lstlisting}
+summarize = DagonTask(
+    TaskType.LLM,
+    "summarize_report",
+    {"messages": [{"role": "user", "content": "Summarize this report: {report}"}]},
+    provider="local_mock",
+    input_files={"report": "workflow:///prepare_report/output/report.txt"},
+)
+\end{lstlisting}
+
+\texttt{\{report\}} is a prompt parameter; \texttt{input\_files} supplies its
+value via the standard \texttt{workflow:///<producer-task>/<path>} form.
+Building dependencies recognizes the reference and creates
+\texttt{prepare\_report} $\to$ \texttt{summarize\_report}, exactly as
+\Cref{ch:schema} predicts for any other task type.
+
+\subsection{Step 4: Provider Configuration in Code}
+
+Because the mock server selects a free port at runtime, the example builds
+its provider configuration in Python rather than in a static INI file:
+
+\begin{lstlisting}
+"llm.local_mock": {
+    "endpoint": "http://127.0.0.1:%s" % server.server_port,
+    "api_key": "example-key-not-a-secret",
+    "model": "mock-chat",
+}
+\end{lstlisting}
+
+Provider section names always use the \texttt{llm.<provider-name>} pattern;
+the task's \texttt{provider} argument selects the matching suffix.
+
+\subsection{Step 5: Run and Inspect}
+
+\begin{lstlisting}
+workflow.add_task(produce)
+workflow.add_task(summarize)
+workflow.run()
+\end{lstlisting}
+
+\texttt{run()} builds missing dependencies automatically. On completion,
+\texttt{summarize.working\_dir} identifies the LLM task's directory, and the
+full response is available at \texttt{Path(summarize.working\_dir, "response.json")}.
+The \emph{complete} JSON response is deliberately retained, rather than only
+the assistant's text, so a downstream task can extract provider-specific
+metadata or choices with its own deterministic program --- a design choice
+directly in service of provenance.
+
+\subsection{Step 6: Switching to a Real Provider}
+
+For a real OpenAI-compatible service, the workflow request is unchanged; only
+configuration changes, in a local, ignored \texttt{dagon.ini}:
+
+\begin{lstlisting}[style=ini]
+[llm.research]
+endpoint=https://api.example.org
+api_key_env=DAGON_RESEARCH_LLM_KEY
+model=research-chat
+\end{lstlisting}
+
+\begin{lstlisting}[style=bash]
+export DAGON_RESEARCH_LLM_KEY=...
+\end{lstlisting}
+
+with \texttt{provider="research"} substituted into the task constructor.
+\begin{cautionbox}
+Never commit the key, and never replace the safe sample configuration with a
+real one in version control.
+\end{cautionbox}
+
+\section{Verification}
+
+\begin{lstlisting}[style=bash]
+python3 -m unittest tests.test_llm -v
+\end{lstlisting}
+
+\begin{practicebox}
+Record the provider name, model, prompt template, and source input files in
+your workflow source, and preserve \texttt{response.json} as a workflow
+output. This makes AI-assisted interpretation inspectable --- a downstream
+reader can audit exactly what was asked and what was returned --- while
+keeping secret credentials entirely out of the workflow and the repository.
+\end{practicebox}
+
+\section{Why a Provider-Agnostic Surface Matters}
+
+\Cref{ch:llm-tasks} already noted that \texttt{TaskType.LLM} requires no
+provider-specific SDK, speaking the OpenAI-compatible Chat Completions
+surface directly over HTTP. This design decision is worth examining for its
+broader methodological implications, because it bears directly on the
+scientific reproducibility properties this book has emphasized throughout.
+
+A workflow engine that depended on a specific vendor's Python SDK would
+couple every LLM-using workflow to that SDK's release cadence, versioning
+behavior, and continued maintenance --- a dependency risk qualitatively
+different from, and arguably larger than, the dependency risk already
+accepted for, say, the Docker SDK (\Cref{ch:backends}), since the
+generative-AI provider landscape has historically changed faster than
+container runtimes have. By speaking the request/response \emph{protocol}
+directly, rather than a vendor SDK, \texttt{TaskType.LLM} decouples a
+workflow's AI-assisted step from any single vendor's continued existence:
+the \texttt{endpoint} configuration value (\Cref{sec:config-llm}) is, in
+principle, swappable to any provider implementing the same
+\texttt{/chat/completions} surface, with no change to the workflow's Python
+source.
+
+\begin{practicebox}
+This protocol-level portability is the same architectural strategy already
+examined, in a different guise, for remote execution
+(\Cref{sec:factory-pattern-depth}): just as a \texttt{BATCH} task's command
+string is portable across any POSIX-like remote host reachable by SSH, an
+\texttt{LLM} task's JSON request is portable across any provider speaking
+the OpenAI-compatible surface, with the concrete provider selected entirely
+by configuration (\Cref{ch:configuration}), not by code.
+\end{practicebox}
+
+\section{The Epistemics of AI-Assisted Scientific Interpretation}
+
+Embedding an LLM call inside a scientific DAG, as Lecture~27 demonstrates,
+raises a methodological question that is worth addressing directly, rather
+than leaving implicit: what kind of scientific claim, if any, does the
+output of an \texttt{LLM} task support, and how should a researcher's
+confidence in that output be calibrated?
+
+It is important to be precise about what the mock example of
+\Cref{ch:llm-tasks} is, and is not, demonstrating. The mechanism --- a
+prompt assembled from a producer task's UTF-8 output, sent to a configured
+endpoint, with the full response preserved as a dependency-trackable file
+--- is provider-agnostic and equally applicable whether the configured
+\texttt{provider} ultimately resolves to a deterministic mock, a
+well-characterized classical text-processing service, or a state-of-the-art
+generative language model. The engine itself makes no claim about, and has
+no mechanism for assessing, the \emph{factual reliability} of whatever text
+a given provider returns; that assessment is and remains entirely the
+responsibility of the researcher consuming the response.
+
+\begin{cautionbox}
+A workflow that uses an \texttt{LLM} task to \emph{summarize} or
+\emph{describe} a model's numerical output (as in the worked example of
+this chapter) is making a categorically different kind of use than a
+workflow that uses an \texttt{LLM} task's output as a direct, unreviewed
+input to a further numerical or decision-making step. The former is
+analogous to using a research assistant's draft summary --- valuable as a
+starting point, properly understood as requiring expert review before being
+relied upon; the latter would require a substantially higher standard of
+verification, calibration, and, in most scientific contexts, human review
+in the loop. This book's worked examples are deliberately confined to the
+former, lower-stakes category, and the full-response-retention design
+discussed below is precisely what makes the necessary expert review
+possible after the fact.
+\end{cautionbox}
+
+This is, in fact, the deeper reason \Cref{ch:llm-tasks} emphasized that the
+\emph{complete} response JSON, not merely the assistant's extracted text, is
+preserved in \texttt{response.json}: an unreviewed text summary, divorced
+from the full request that produced it (including the exact prompt,
+provider, and model), is far harder for a later reader to critically assess
+than a complete, inspectable request/response pair. The provenance argument
+already developed in \Cref{ch:schema} for file-based dependencies applies
+with, if anything, greater force here: the epistemic status of an
+AI-generated scientific summary depends critically on knowing exactly what
+was asked and exactly what model produced the answer, information that a
+bare text string alone does not carry.
+
+\section{Cost, Latency, and Rate Limits as Operational Constraints}
+
+A final consideration, absent from the purely mechanical treatment of
+Lecture~27 but essential for any researcher moving from the mock example to a
+real provider, concerns the operational constraints that distinguish LLM
+tasks from the local, cost-free \texttt{BATCH} tasks used throughout most of
+this book's tutorial examples.
+
+Unlike a local shell command, a real-provider LLM completion typically
+incurs a per-request monetary cost, a network round-trip latency
+significantly larger than a local subprocess call, and is frequently
+subject to rate limits imposed by the provider. These constraints interact
+directly with the workflow-design questions already raised elsewhere in
+this book. The task-granularity discussion of \Cref{sec:task-granularity},
+for instance, takes on a sharper edge for LLM tasks specifically: an
+overly fine-grained decomposition that issues many small, separate LLM
+requests where one consolidated request would suffice multiplies both cost
+and the risk of rate-limit-induced failures, with no corresponding gain in
+traceability beyond what a single, well-structured request and response
+already provide.
+
+\begin{practicebox}
+The \texttt{timeout} parameter exposed on the \texttt{LLMTask} constructor
+(Appendix~A, default 120 seconds) is the engine's primary mechanism for
+bounding the operational risk of an unresponsive or rate-limited provider;
+a workflow author moving from the mock provider used in this book's local
+examples to a production LLM provider should explicitly reconsider this
+default against the provider's documented typical latency and the
+workflow's own tolerance for a stalled task, rather than relying on the
+default value chosen for local, low-latency testing.
+\end{practicebox}
+
+\section{Chapter Summary}
+
+\texttt{TaskType.LLM} demonstrates the engine's central architectural claim
+at its most consequential: an AI inference call, expressed as a JSON Chat
+Completions request, participates in the same dependency graph, the same
+\texttt{workflow://} staging mechanism, and the same provenance discipline as
+a shell command or an HPC job submission. This chapter additionally argued
+that the task type's provider-agnostic, protocol-level design is itself a
+reproducibility decision rather than a mere implementation convenience,
+addressed directly the epistemic status of AI-generated scientific text
+embedded in a DAG and the corresponding case for full-response retention,
+and discussed the cost, latency, and rate-limit constraints that distinguish
+LLM tasks operationally from the local tasks examined in Part~I.
+\Cref{ch:web-tasks} extends the same architectural principle to arbitrary
+HTTP/HTTPS services, and \Cref{ch:native-tasks} extends it to native Python
+functions.
+
+\begin{exercise}
+A researcher proposes replacing a workflow's \texttt{NATIVE}-task
+statistical quality-control step (\Cref{ch:native-tasks}) with an
+\texttt{LLM} task that asks a language model to ``check whether this data
+looks reasonable.'' Using the epistemic-status discussion of this chapter,
+write a short methodological critique of this proposal, and suggest a
+revised design that uses an \texttt{LLM} task appropriately alongside,
+rather than instead of, a deterministic quality-control mechanism.
+\end{exercise}

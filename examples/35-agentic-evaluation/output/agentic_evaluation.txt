@@ -1,0 +1,5 @@
+F = 0.6667 | accepted: False | gate failures: ['stations']
+gated run: FAILED | publish ran: False | result exists: False
+reused, same contract: True
+reused, new threshold: False
+reused, new input content: False

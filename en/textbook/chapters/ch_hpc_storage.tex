@@ -1,0 +1,119 @@
+\chapter{Orchestrators, Job-Local Storage and Data Movement}
+\label{ch:hpc-storage}
+
+\Cref{ch:backends} placed tasks in Docker containers and Slurm jobs. This
+chapter completes the infrastructure side of the course (Lectures~38--40 and
+42--44). It covers HPC containers with Apptainer, container orchestrators,
+remote and cloud hosts, job-local BeeOND file systems, pre-staging of inputs
+before submission, and the data movers that carry \texttt{workflow://}
+references between hosts. Most of these services are not on a laptop. Each
+example therefore checks what DAGonStar generates or decides, and runs the
+rest under portable emulation or against a local stand-in.
+
+\section{Apptainer}
+
+\texttt{TaskType.APPTAINER} runs a command inside a Singularity Image Format
+(SIF) file. If the image is a registry reference (the default is
+\texttt{docker://ubuntu:20.04}), the task builds a \texttt{.sif} with
+\texttt{apptainer build}, retrying with \texttt{sudo} if needed, and reuses an
+existing file afterwards. The command runs with \texttt{apptainer exec}, a
+writable overlay (\texttt{overlay\_size} 1024\,MiB by default), the scratch
+directory bound at the same path, and \texttt{--pwd} set to the task folder.
+
+\lstinputlisting[caption={Lecture 38: an Apptainer task (\texttt{examples/38-apptainer/apptainer\_task.py}).},label={lst:apptainer}]{../../examples/38-apptainer/apptainer_task.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 38.}]{../../examples/38-apptainer/output/apptainer_task.txt}
+
+\section{Kubernetes and Nomad}
+
+A \texttt{KUBERNETES} task creates a pod that runs \texttt{sleep infinity},
+executes the launcher in the container \texttt{main} with
+\texttt{/bin/bash -c}, and deletes the pod afterwards. A \texttt{NOMAD} task
+submits a batch job with the Docker driver and a restart policy of zero
+attempts, so a failure is reported, not hidden. Its log is fetched and the job
+is purged. Lecture~39 replaces both clients with local fakes and checks the
+objects DAGonStar sends.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 39 (\texttt{examples/39-orchestrators/kubernetes\_nomad.py}).}]{../../examples/39-orchestrators/output/kubernetes_nomad.txt}
+
+\section{Remote Hosts and Clouds}
+
+Passing \texttt{ip} and \texttt{ssh\_username} turns a batch, Slurm or Docker
+task into its remote variant (\Cref{sec:factory-pattern-depth}). A connection
+is opened only when both are given. Every argument of a remote command is
+quoted, so a folder name with spaces or a semicolon cannot become a second
+command. \texttt{CLOUD} tasks use Apache Libcloud, which is an optional extra.
+Without it the task fails with a message that names the install command.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 40 (\texttt{examples/40-remote/ssh\_and\_cloud.py}).}]{../../examples/40-remote/output/ssh_and_cloud.txt}
+
+\section{BeeOND: Job-Local File Systems}
+
+BeeOND builds a parallel file system from the local disks of a job's nodes
+for the job's duration. A Slurm task requests it with \texttt{beeond="task"}
+for a private volume. With \texttt{beeond="workflow:<name>"} it uses a volume
+created once with \texttt{wf.create\_beeond\_volume}. The task finds its volume
+in the \texttt{DAGON\_BEEOND} environment variable. With \texttt{persist}
+(the default), the contents of a task volume are copied into the task folder
+under \texttt{beeond/}, so consumers reference them as
+\texttt{workflow:///<task>/beeond/<file>}.
+
+\lstinputlisting[caption={Lecture 42: task and workflow volumes (\texttt{examples/42-beeond/beeond.py}).},label={lst:beeond}]{../../examples/42-beeond/beeond.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 42.}]{../../examples/42-beeond/output/beeond.txt}
+
+\begin{cautionbox}[A shared volume carries no references]
+Tasks that share a workflow volume exchange files through
+\texttt{\$DAGON\_BEEOND}, not through \texttt{workflow://} references. The
+engine cannot infer an edge from them, so the order must be declared with
+\texttt{add\_dependency\_to}, as Lecture~42 does for \texttt{roms} and
+\texttt{stage}.
+\end{cautionbox}
+
+\section{Pre-Staging Before Submission}
+
+On a busy cluster a job may wait hours in the queue and then fail in its
+first second because an input is missing. With \texttt{pre\_stage=True}
+DAGonStar stages and verifies a Slurm task's inputs \emph{before}
+\texttt{sbatch}. The phases are \texttt{PREPARING}, \texttt{STAGING},
+\texttt{STAGED}, \texttt{SUBMITTED}, then \texttt{COMPLETED} or
+\texttt{FAILED}. A completion marker (\texttt{stage-in-complete.json}) must
+exist before submission. A failed stage-in never reaches the scheduler.
+Pre-staging is refused at \texttt{add\_task} for backends that cannot honour
+it, and for tasks whose inputs live on a BeeOND volume that exists only inside
+the job.
+
+\lstinputlisting[caption={Lecture 43: pre-staging against a local stand-in for \texttt{sbatch} (\texttt{examples/43-prestage/prestage.py}).},label={lst:prestage}]{../../examples/43-prestage/prestage.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 43.}]{../../examples/43-prestage/output/prestage.txt}
+
+\section{Data Movers}
+
+When a consumer and its producer run on the same host, the stager copies
+(\texttt{cp -r}) or links (\texttt{ln -sf}) the referenced file. Across hosts
+it tries GridFTP, then SCP, then FTP. Globus endpoints are used when both
+hosts declare one. The mover mode (\texttt{NORMAL}, \texttt{PARALLEL},
+\texttt{SLURM}) decides whether transfers run in sequence, in parallel or as
+a Slurm job.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 44 (\texttt{examples/44-movers/data\_movers.py}).}]{../../examples/44-movers/output/data_movers.txt}
+
+\section{Chapter Summary}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item Apptainer, Kubernetes and Nomad change where a launcher runs, not the
+    graph around it.
+  \item Remote commands are quoted, and cloud support is an optional extra.
+  \item BeeOND volumes are fast and temporary. Persist what consumers need,
+    and order shared-volume tasks by hand.
+  \item Pre-staging moves input failures from inside the job to before
+    submission, where they cost no core-hours.
+  \item The stager picks the cheapest transport that the two hosts support.
+\end{itemize}
+
+\begin{exercise}
+A WRF run of 128 cores waits on average three hours in the queue, and one run
+in twenty fails at start-up because a boundary file is missing. Estimate the
+core-hours that pre-staging saves over a hundred runs, and say what it does
+not save.
+\end{exercise}

@@ -1,0 +1,4 @@
+would launch: mpirun -np 4 dagonfs --model client-server -f <base>/dagonfs
+scratch: local directory (no DAGonFS on this host)
+task folders on the scratch: 5
+kept after the volume is gone: ['NAP', '15.50', 'CAP', '16.75', 'ISC', '15.75']

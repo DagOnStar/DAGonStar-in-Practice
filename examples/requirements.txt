@@ -1,0 +1,5 @@
+# The virtual environment that runs every example of the course.
+# DAGonStar is pinned to the commit the course was tested against (v2.9.4).
+dagonstar[docker,kubernetes] @ git+https://github.com/DagOnStar/dagonstar@41029a681d332cc2d690d1c197749e94350ec598
+# Optional: validates the CWL export of lecture 46.
+cwltool==3.2.20260413085819

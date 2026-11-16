@@ -1,0 +1,16 @@
+{
+  "name": "dagonstar-in-practice-slides",
+  "private": true,
+  "description": "Generator of the DAGonStar in Practice teaching material: 48 lecture decks of 30 slides, a DAGonFS appendix deck and the lecture notes",
+  "scripts": {
+    "build": "node build.js",
+    "notes": "node notes.js",
+    "all": "node build.js && node notes.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pptxgenjs": "^3.12.0"
+  },
+  "license": "CC0-1.0",
+  "author": "Raffaele Montella"
+}

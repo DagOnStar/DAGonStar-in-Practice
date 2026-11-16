@@ -1,0 +1,4 @@
+FAIR folder without enable_fair: False
+bundle: ['checksums.sha256', 'codemeta.json', 'datacite.json', 'fairness-report.json', 'prov.json', 'report.html', 'report.md', 'ro-crate-metadata.json', 'run.json']
+secret in the bundle: False
+files described in the RO-Crate: ['Capri mean', 'Observations']

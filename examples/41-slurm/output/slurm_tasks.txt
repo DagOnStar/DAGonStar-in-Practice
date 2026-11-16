@@ -1,0 +1,5 @@
+sbatch: sbatch '--partition=debug queue' --ntasks=4 --mem=2048 --time=01:00:00 --nodes=1 -J 'wrf; touch pwned' -D '/scratch/work dir'
+       -W '/scratch/work dir/.dagon/launcher.sh'
+jobs submitted: ['broken', 'mean_NAP']
+mean_NAP: FINISHED NAP 15.50
+broken: FAILED

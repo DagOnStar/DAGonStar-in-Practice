@@ -1,0 +1,33 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+This textbook presents \emph{DAGonStar} (Direct Acyclic Graph On anything, also
+written \emph{DAGon*}), a lightweight Python workflow engine designed to
+orchestrate computational tasks across local machines, on-premise
+high-performance computing (HPC) clusters, containers, cloud-based virtual
+infrastructures, and, in its current evolution, artificial-intelligence (AI)
+and web services. The material is the companion textbook of a 48-lecture course in which
+theory and hands-on work are mixed in every lecture. It is aligned with
+DAGonStar~2.9.4 (\url{https://github.com/DagOnStar/dagonstar}).
+
+The book follows the four parts of the course. Part~I (Lectures~01--12)
+establishes the foundations of scientific workflow orchestration: directed
+acyclic graphs, the \texttt{workflow://} schema, configuration, scratch
+folders, cycle detection and a first station pipeline. Part~II
+(Lectures~13--24) covers execution, data and recovery: staging, garbage
+collection, checkpointing, failures, native tasks, asynchronous runs,
+meta-workflows, sweeps and ensembles. Part~III (Lectures~25--36) presents the
+task models for AI--HPC integration: Web, LLM, FaaS, IoT and agentic tasks,
+joined across the computing continuum, and an environmental case study.
+Part~IV (Lectures~37--48) turns to infrastructure, data movement and FAIR
+practice: containers, orchestrators, remote and cloud hosts, Slurm, BeeOND,
+pre-staging, data movers, FAIR metadata, CWL export, operations and a
+capstone. Appendices~A--D collect the API reference, developer practices,
+configuration reference and checkpoint semantics. Appendix~E presents
+DAGonFS, an in-memory MPI-distributed file system for workflow scratch data.
+
+Every course example is included verbatim from the \texttt{examples/}
+folder of the course repository, together with its recorded output. The
+script \texttt{tools/run\_examples.py} re-runs every example against the
+installed DAGonStar and compares the outputs, so the book stays consistent
+with the code.

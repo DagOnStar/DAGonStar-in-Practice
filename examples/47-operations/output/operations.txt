@@ -1,0 +1,6 @@
+service checked at: http://dagon-service.invalid/check
+workflow id: 7 | calls: [['dagon-service.invalid', 'create'], ['add_task', '7']]
+JSON round trip keeps the explicit edge: ['fetch']
+runner PYTHONPATH keeps user entries first: True | package root appended: True
+bash: /bin/bash | shell_path is a str: True
+dagon-agent-runner --help: ok

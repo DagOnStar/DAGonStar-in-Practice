@@ -1,0 +1,4 @@
+run 1: {'fetch': 'FINISHED', 'qc': 'FAILED', 'plot': 'FAILED', 'archive': 'FINISHED'}
+plot never started: True
+run 2: {'fetch': 'FINISHED', 'qc': 'FINISHED', 'plot': 'FINISHED', 'archive': 'FINISHED'}
+reused from run 1: ['fetch', 'archive']

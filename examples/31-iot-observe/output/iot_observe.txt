@@ -1,0 +1,6 @@
+unbounded observation rejected: IoT completion must select a supported bounded mode
+kept sequences: [1, 2, 3] of 5
+mean of the sample: 16.5
+provenance: ['migration_history', 'outcome_certainty', 'placement', 'protocol_metadata', 'requested_target', 'selected_target']
+checkpoint reusable: True
+after deleting the output: False

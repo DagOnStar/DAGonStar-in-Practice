@@ -1,0 +1,5 @@
+configure: {'desired': {'sampling_seconds': 60}, 'reported': {'sampling_seconds': 60}}
+sampling_rate FINISHED certainty=known
+storm_siren   FINISHED certainty=known
+harbour_gate  FAILED   certainty=unknown
+gate reusable from checkpoint: False

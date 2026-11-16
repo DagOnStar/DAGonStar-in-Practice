@@ -1,0 +1,3 @@
+status: FINISHED
+records fetched: 12
+header: station,time_utc,temperature_c,wind_m_s

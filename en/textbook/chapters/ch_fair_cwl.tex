@@ -1,0 +1,98 @@
+\chapter{FAIR Records, CWL Export, Operations and the Capstone}
+\label{ch:fair-cwl}
+
+A workflow that produces a correct result has done half its work. The other
+half is to let someone else find the result, trust it and run it again. This
+chapter covers the last four lectures of the course. It shows FAIR metadata
+(Lecture~45), export to the Common Workflow Language (Lecture~46), the
+operational helpers that keep a deployment honest (Lecture~47), and the
+capstone that puts every task type into one graph (Lecture~48).
+
+\section{FAIR Metadata}
+
+FAIR metadata is opt-in. A workflow that does not call \texttt{enable\_fair}
+writes nothing extra. With a \texttt{FairProfile} (title, description,
+creators, licence, keywords, access policy) and outputs declared as
+\texttt{Artifact}s, every run writes a bundle under
+\texttt{.dagon/fair/<workflow>/<run>/}. The bundle holds nine files: an
+RO-Crate, a W3C PROV document, DataCite and CodeMeta records, the run record,
+a fairness report checked against F1, F2, A1, I1, I2 and R1.1, a SHA-256
+manifest, and Markdown and HTML reports.
+
+\lstinputlisting[caption={Lecture 45: a FAIR run (\texttt{examples/45-fair/fair.py}).},label={lst:fair}]{../../examples/45-fair/fair.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 45.}]{../../examples/45-fair/output/fair.txt}
+
+\begin{cautionbox}[Credentials are never exported]
+The configuration of Lecture~45 contains a (fake) API key. Values whose keys
+match the redaction patterns (\texttt{TOKEN}, \texttt{SECRET},
+\texttt{PASSWORD}, \texttt{PRIVATE\_KEY} and the cloud-provider prefixes) are
+removed before anything is written, and the example checks that the key
+appears in no file of the bundle.
+\end{cautionbox}
+
+\section{CWL Export}
+
+\texttt{saveAsCWL} writes a CWL v1.2 workflow. File references become step
+inputs. An ordering edge with no file, such as \texttt{notify} after
+\texttt{mean\_ISC}, becomes a boolean \texttt{completed} output of the
+producer and an \texttt{after\_<producer>} input of the consumer. The export
+is deterministic: two exports of the same graph are byte-identical, and no
+scratch path appears in them. Container tasks gain a
+\texttt{DockerRequirement} hint.
+
+\lstinputlisting[caption={Lecture 46: export and validation (\texttt{examples/46-cwl/cwl\_export.py}).},label={lst:cwl}]{../../examples/46-cwl/cwl_export.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 46.}]{../../examples/46-cwl/output/cwl_export.txt}
+
+\section{Operating DAGonStar}
+
+Lecture~47 collects the helpers an operator relies on. With
+\texttt{[dagon\_service]} enabled, a workflow checks the service, registers
+itself and registers each task. The JSON form keeps explicit edges
+(\Cref{ch:course-pipeline}). The runner environment keeps the user's
+\texttt{PYTHONPATH} entries first and appends the package root. The Bash used
+for launchers can be overridden with \texttt{DAGON\_BASH}. The packaged
+\texttt{dagon-agent-runner} is installed as a console script.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 47 (\texttt{examples/47-operations/operations.py}).}]{../../examples/47-operations/output/operations.txt}
+
+\section{The Capstone}
+
+The capstone builds one graph of sixteen tasks that uses every registered
+task type: batch, Slurm, Docker, Apptainer, Kubernetes, Nomad, cloud, web,
+LLM, native, FaaS, IoT and agentic, with remote variants. It runs under
+portable emulation with checkpointing and FAIR recording enabled. Every
+network-facing adapter is replaced by a function that fails the test if it is
+called. The run must therefore succeed without a single live call, and the
+CWL export must still describe all sixteen steps.
+
+\lstinputlisting[caption={Lecture 48: the capstone (\texttt{examples/48-capstone/capstone.py}).},label={lst:capstone}]{../../examples/48-capstone/capstone.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 48.}]{../../examples/48-capstone/output/capstone.txt}
+
+\begin{practicebox}
+The capstone is also a template for continuous integration. A workflow that
+runs end to end under emulation, with every live adapter guarded, catches
+broken references, bad configurations and contract errors on every commit.
+It needs no cluster, no credential and no quota.
+\end{practicebox}
+
+\section{Chapter Summary}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item FAIR bundles describe declared outputs, licences, provenance and
+    checksums, and never contain credentials.
+  \item CWL exports are deterministic, path-free and keep ordering edges.
+  \item Operational helpers make service registration, environments and
+    shells explicit.
+  \item The capstone proves that the whole task-type catalogue composes into
+    one checkpointed, recorded and exportable graph.
+\end{itemize}
+
+\begin{exercise}
+Enable FAIR recording on the station pipeline of \Cref{ch:course-pipeline},
+declare the report as an artifact under CC-BY-4.0, and read the fairness
+report. Which checks pass, and which require information that the workflow
+does not have?
+\end{exercise}

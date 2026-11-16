@@ -1,0 +1,6 @@
+profile: quality-local | tools: ()
+accepted: True
+fit per attempt: [0.8, 1.0]
+tool calls: 0 | determinism: deterministic_fixture
+records kept: 4
+rejected before execution: {'missing_profile': 'invalid_configuration', 'budget_above_profile': 'invalid_configuration', 'unknown_tool': 'invalid_contract', 'no_requirements': 'invalid_contract'}

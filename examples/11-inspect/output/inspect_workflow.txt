@@ -1,0 +1,4 @@
+JSON keys: ['host', 'id', 'name', 'tasks'] | tasks: ['fetch', 'count', 'plot']
+count as JSON: {'name': 'count', 'type': 'batch'}
+reloaded: Inspect11 ['fetch', 'count', 'plot'] | plot after: ['count']
+ended: 3 tasks | timed: ['count', 'fetch', 'plot']

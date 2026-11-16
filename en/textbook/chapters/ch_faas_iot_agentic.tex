@@ -1,0 +1,195 @@
+\chapter{Functions, Devices and Agents}
+\label{ch:faas-iot-agentic}
+
+The web and LLM tasks of \Cref{ch:web-tasks,ch:llm-tasks} call services that
+answer one request with one reply. This chapter covers three task types that
+reach further (Lectures~29--36). \texttt{FAAS} tasks invoke cloud functions
+that are already deployed. \texttt{IOT} tasks observe and act on physical
+devices. \texttt{AGENTIC} tasks run a supervised agent against a declared
+contract. All three share a design principle that sets them apart from batch
+tasks: their checkpoints are judged by \emph{content}, not by name, because
+their effects are paid for, physical, or non-deterministic.
+
+\section{FaaS Tasks}
+
+\subsection{The Contract}
+
+A \texttt{FAAS} task names a provider (\texttt{mock}, \texttt{http},
+\texttt{knative}, \texttt{aws}, \texttt{azure}, \texttt{gcp}, or one added
+with \texttt{register\_provider}) and a deployed function. It declares its
+inputs, outputs, invocation mode, timeout and retry policy. DAGonStar does not
+deploy functions. It invokes them through provider adapters, and cloud SDKs
+are imported only when their provider is used.
+
+\lstinputlisting[caption={Lecture 29: a FAAS task against the mock provider (\texttt{examples/29-faas/faas\_mock.py}).},label={lst:faas-mock}]{../../examples/29-faas/faas_mock.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 29.}]{../../examples/29-faas/output/faas_mock.txt}
+
+\subsection{Envelope, Descriptors and Idempotency}
+
+Each invocation sends a CloudEvents-style envelope (\texttt{specversion 1.0},
+type \texttt{org.dagonstar.task.invoke}). Its \texttt{id} is the SHA-256 of
+the workflow name, the task name and the specification. The id is the same on
+every retry and every resume, so a function can recognise a repeated request.
+File inputs are not passed as paths. They become \emph{descriptors} with the
+original reference, the staged path, the size, the media type, a checksum and
+a transport. Retries apply only to transient error codes (\texttt{throttled},
+\texttt{provider\_unavailable}, \texttt{transport\_error}). A function that
+raises is a permanent failure.
+
+\begin{definitionbox}{Exactly-once results}
+A completed FAAS task records the SHA-256 of its specification. On re-execution it is reused only if the recorded exit code is 0, the
+specification hash is unchanged and the folder exists. A changed specification is invoked again, and an unchanged one never is.
+Lecture~29 proves this by replacing the provider factory with a counting mock
+and observing zero calls.
+\end{definitionbox}
+
+Lecture~30 runs the same contract against an HTTP function on
+\texttt{127.0.0.1} (\texttt{examples/30-faas-http/faas\_http.py}). Only the
+provider and its options change.
+
+\section{IoT Tasks}
+
+\subsection{Bounded Operations}
+
+An \texttt{IOT} task performs one of four operations: \texttt{observe},
+\texttt{configure}, \texttt{actuate} or \texttt{compute}. It must declare a
+\emph{bounded} completion mode: \texttt{first\_event},
+\texttt{sample\_count}, \texttt{duration}, \texttt{condition},
+\texttt{acknowledged}, \texttt{reported\_state} or \texttt{job}. Observation
+modes that wait for something need \texttt{timeout\_seconds}. A task with no
+mode is rejected at construction with ``IoT completion must select a
+supported bounded mode''.
+
+\lstinputlisting[caption={Lecture 31: a bounded observation (\texttt{examples/31-iot-observe/iot\_observe.py}).},label={lst:iot-observe}]{../../examples/31-iot-observe/iot_observe.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 31.}]{../../examples/31-iot-observe/output/iot_observe.txt}
+
+Five readings are offered and \texttt{sample\_count} keeps three, whose
+mean is $(16.0 + 16.5 + 17.0)/3 = 16.5$\,\textdegree C. Each task writes
+\texttt{.dagon/iot\_provenance.json} with the requested and selected target,
+the placement, the migration history, protocol metadata and the outcome
+certainty. An observation is reused only while every output file still has
+its recorded SHA-256. Deleting the output makes the checkpoint unusable,
+because an observation cannot be repeated.
+
+\subsection{Actuation at Most Once}
+
+\lstinputlisting[caption={Lecture 32: configuration and actuation (\texttt{examples/32-iot-actuate/iot\_actuate.py}).},label={lst:iot-actuate}]{../../examples/32-iot-actuate/iot_actuate.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 32.}]{../../examples/32-iot-actuate/output/iot_actuate.txt}
+
+\begin{cautionbox}[Unknown outcomes are never replayed]
+An actuation is delivered at most once by default. \texttt{max\_attempts}
+greater than one is refused unless the delivery declares
+\texttt{idempotent: true}. When an actuation is not acknowledged, its
+checkpoint records \texttt{outcome\_certainty: unknown}, and the task fails
+with ``automatic replay is disabled''. A resume then reattaches to the
+recorded invocation, if the provider supports it, rather than sending a
+second command. A person decides what happened to the harbour gate.
+\end{cautionbox}
+
+\section{Agentic Tasks}
+
+\subsection{Profiles and Contracts}
+
+An agentic task never contains an endpoint, a model, a key or code. It names
+a \emph{profile}, a \texttt{[agent.<name>]} section of \texttt{dagon.ini} that
+sets the provider, the strategy (\texttt{bounded\_iterative}), the permitted
+tools and guardrails, and finite budgets (\texttt{max\_steps},
+\texttt{timeout\_seconds}, \texttt{max\_tool\_calls}, \texttt{max\_tokens},
+\texttt{max\_attempts}). The task may only narrow tools, lower budgets and
+add guardrails. It declares a \emph{contract}: a specification with
+objective, context and output schema; inputs as \texttt{workflow://}
+references; requirements scored by registered evaluators; and an acceptance
+threshold.
+
+\lstinputlisting[caption={The course's quality-control contract (\texttt{examples/common/agentic.py}, excerpt).},label={lst:agentic-common},firstline=76,lastline=93]{../../examples/common/agentic.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 33 (\texttt{examples/33-agentic-contract/agentic\_contract.py}).}]{../../examples/33-agentic-contract/output/agentic_contract.txt}
+
+With no tools, the deterministic mock adapter first submits the table
+unchanged. The \texttt{record\_coverage} evaluator scores it $4/\max(4,5) =
+0.8$, below the threshold of 1.0. After this feedback the agent submits a
+deduplicated table, which scores 1.0 and is published. Four invalid
+configurations are refused before any adapter, tool or transfer starts.
+
+\subsection{Guardrails}
+
+Every proposed action passes runtime invariants before it executes. The tool
+must be permitted and registered. The arguments must be an object that
+matches the tool's schema. The arguments may contain no \texttt{workflow://}
+reference and no absolute or parent-directory path. Named guardrails
+(\texttt{preserve\_record\_ids}, \texttt{non\_empty\_result},
+\texttt{read\_only\_tools}) check inputs, actions and results. A repairable
+violation becomes feedback for the agent; any other violation fails the task
+with \texttt{guardrail\_blocked}.
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 34 (\texttt{examples/34-agentic-guardrails/agentic\_guardrails.py}).}]{../../examples/34-agentic-guardrails/output/agentic_guardrails.txt}
+
+\subsection{Evaluation, Publication and Identity}
+
+The result fit is a weighted mean of requirement scores:
+\[
+F = \frac{\sum_{i:\,w_i>0} w_i s_i}{\sum_{i:\,w_i>0} w_i}.
+\]
+A candidate is accepted only if no evaluator failed, every hard check passed,
+$F$ reaches the threshold, and no mandatory requirement scored below its
+minimum. A result is published only after acceptance, through a commit
+manifest written last. A checkpoint is reused only if its \emph{identity
+digest} still matches. The digest covers the contract, the effective
+profile, the tool, guardrail, evaluator and adapter versions, and the SHA-256
+of every input.
+
+\lstinputlisting[caption={Lecture 35: gates and content-based reuse (\texttt{examples/35-agentic-evaluation/agentic\_evaluation.py}).},label={lst:agentic-eval}]{../../examples/35-agentic-evaluation/agentic_evaluation.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 35.}]{../../examples/35-agentic-evaluation/output/agentic_evaluation.txt}
+
+The golden case is worth computing by hand: $F = (2\cdot1 + 1\cdot0)/3 =
+0.667$ exceeds the threshold of 0.6, yet the candidate is rejected because the
+mandatory \texttt{stations} requirement failed.
+
+\section{One Graph Across the Continuum}
+
+Lecture~36 joins an IoT observation at a gateway, a native normalisation, the
+agentic quality check and a FaaS archive into one chain. References work the
+same way in every task type, and each task is checkpointed by its own type's
+rule.
+
+\lstinputlisting[caption={Lecture 36: edge to cloud (\texttt{examples/36-continuum/continuum.py}).},label={lst:continuum}]{../../examples/36-continuum/continuum.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of Lecture 36.}]{../../examples/36-continuum/output/continuum.txt}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Task type & Reused when & Why \\
+\midrule
+BATCH, NATIVE & code 0 and folder exists & cheap to repeat \\
+FAAS & same specification SHA-256 & paid calls \\
+IOT & every output SHA-256 matches & observations are unrepeatable \\
+AGENTIC & identity digest and outputs verify & non-deterministic \\
+\bottomrule
+\end{tabular}
+\caption{Checkpoint reuse rules by task type.}
+\label{tab:reuse-rules}
+\end{table}
+
+\section{Chapter Summary}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item FAAS tasks invoke deployed functions with a stable idempotency key, file descriptors and exactly-once results.
+  \item IOT tasks are always bounded. Actuations are sent at most once, and
+    unknown outcomes are recorded, never replayed.
+  \item AGENTIC tasks run inside a profile's authority, are checked before
+    every action, and publish only accepted results.
+  \item Content-based checkpoints protect effects that are expensive,
+    physical or non-deterministic.
+\end{itemize}
+
+\begin{exercise}
+Extend the continuum workflow of Lecture~36 with an actuation that sounds a
+siren when the accepted table contains a temperature above a threshold. Decide
+its delivery policy and justify it.
+\end{exercise}

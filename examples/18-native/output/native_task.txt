@@ -1,0 +1,4 @@
+type: NativeTask | after: ['fetch']
+bindings: {"observations": {"kind": "file", "path": "inputs/observations/observations.csv"}} {"result": {"kind": "file", "path": "outputs/mean.json"}}
+outputs/mean.json: {'mean_temperature_c': 16.0}
+return value: {'count': 12}

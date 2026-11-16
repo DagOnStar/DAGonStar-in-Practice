@@ -1,0 +1,5 @@
+returned: {'factor': 1.943844, 'label': 'lecture-19', 'rows': 12, 'unit': 'kn'}
+first rows: ['station,time_utc,wind_kn', 'NAP,2026-11-02T00:00:00Z,5.83']
+calibrate: FAILED
+its stderr ends with: RuntimeError: calibration table missing for observations.csv
+rejected at construction: Native function bindings are incompatible: missing a require

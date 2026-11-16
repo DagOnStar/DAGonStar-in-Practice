@@ -1,0 +1,3 @@
+COPY     staged=copy    consumer=FINISHED
+LINK     staged=symlink consumer=FINISHED
+DONTMOVE staged=none    consumer=FAILED

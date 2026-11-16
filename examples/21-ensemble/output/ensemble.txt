@@ -1,0 +1,6 @@
+  member_0 {'mean_temperature_c': 15.0, 'offset': -1.0}
+  member_1 {'mean_temperature_c': 15.5, 'offset': -0.5}
+  member_2 {'mean_temperature_c': 16.0, 'offset': 0.0}
+  member_3 {'mean_temperature_c': 16.5, 'offset': 0.5}
+  member_4 {'mean_temperature_c': 17.0, 'offset': 1.0}
+statistics waits for 5 members: {'ensemble_mean_c': 16.0, 'members': 5, 'spread_c': 0.707}

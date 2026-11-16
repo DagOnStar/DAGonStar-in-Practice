@@ -1,0 +1,3 @@
+type: LLMTask | after: ['fetch']
+model: course-chat | usage: {'completion_tokens': 12, 'prompt_tokens': 18}
+answer: Summary of 12 records for model course-chat: Summarise the Gulf of Naples.

@@ -1,0 +1,4 @@
+sections: dagon_service, ftp_pub, batch, slurm
+batch: {'scratch_dir_base': '<scratch>', 'run_base': '', 'remove_dir': 'False', 'threads': '2'}
+FromFile05 | remove_dir: False | task dir inside scratch: True
+FromDict05 | remove_dir: False | task dir inside scratch: True

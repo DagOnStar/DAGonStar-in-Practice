@@ -1,0 +1,9 @@
+Python 3.12.10 on Darwin
+dagonstar 2.9.4 from dagon
+bash: /bin/bash
+task types: 14
+  optional docker      present
+  optional kubernetes  present
+  optional libcloud    present
+  optional globus_sdk  present
+  optional cwltool     present

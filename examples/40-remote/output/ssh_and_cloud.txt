@@ -1,0 +1,5 @@
+Batch(..., ip=...) builds RemoteBatch | ports: 22 2200
+connections opened: 2 | without a username: None
+quoted remote command: mkdir -p '/scratch/run dir; rm -rf ~/.dagon'
+cloud task: CloudTask | node: None | ssh: None
+without the extra: Cloud support requires the 'cloud' extra: python -m pip install 'dagonstar[cloud]'

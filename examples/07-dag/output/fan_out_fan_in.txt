@@ -1,0 +1,3 @@
+fetch feeds: ['analyse_CAP', 'analyse_ISC', 'analyse_NAP']
+report waits for: ['analyse_CAP', 'analyse_ISC', 'analyse_NAP']
+first: fetch | last: report | ran: 5

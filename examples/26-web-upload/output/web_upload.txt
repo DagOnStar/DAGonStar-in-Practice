@@ -1,0 +1,5 @@
+upload: FINISHED {'stored': True, 'bytes': 801, 'multipart': True}
+private: FINISHED {'access': 'granted'}
+auth recorded as: {'source': 'env:STATION_TOKEN', 'type': 'bearer'}
+token in the request record: False
+busy: FAILED after 3 attempts
