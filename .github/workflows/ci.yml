@@ -1,0 +1,106 @@
+# Continuous integration: the checks of AGENTS.md section 4, on every push and pull request.
+#
+#   examples  every example runs, passes its own assertions and prints exactly its recorded output
+#   decks     every deck has 30 slides, builds without layout warnings, and the committed
+#             decks and notes are what the sources build (builds are byte-reproducible)
+#   textbook  the LaTeX textbook builds with no undefined references
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    name: Examples
+    # The outputs were recorded on macOS with Python 3.12.10 (lecture 04 prints both).
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      DAGONFS_PYTHON: ${{ github.workspace }}/DAGonFS/python
+    steps:
+      - uses: actions/checkout@v4
+      - name: DAGonFS Python package (Appendix A1)
+        uses: actions/checkout@v4
+        with:
+          repository: DagOnStar/DAGonFS
+          ref: f7a6ae61e3ec890c58b7d31ba2c7bf82a1a83693
+          path: DAGonFS
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.10"
+          cache: pip
+          cache-dependency-path: examples/requirements.txt
+      - name: Install the course environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r examples/requirements.txt
+          # optional packages that lecture 04 reports as present
+          python -m pip install apache-libcloud==3.8.0 globus-sdk==3.28.0
+      - name: Run every example
+        run: python tools/run_examples.py --strict
+
+  decks:
+    name: Decks and notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+      - name: Install
+        working-directory: src
+        run: npm ci
+      - name: Count slides
+        working-directory: src
+        run: node count.js
+      - name: Build decks (fails on any layout warning)
+        working-directory: src
+        run: node build.js
+      - name: Write notes
+        working-directory: src
+        run: node notes.js
+      - name: Committed decks and notes match their sources
+        run: |
+          git status --short -- en/lectures en/notes
+          git diff --stat --exit-code -- en/lectures en/notes
+          test -z "$(git status --porcelain -- en/lectures en/notes)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decks
+          path: en/lectures/*.pptx
+
+  textbook:
+    name: Textbook
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with latexmk
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: en/textbook
+      - name: No undefined references
+        working-directory: en/textbook
+        run: |
+          if grep -E "(Reference|Citation).*undefined|There were undefined references" main.log; then
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textbook
+          path: en/textbook/main.pdf

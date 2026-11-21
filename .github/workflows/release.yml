@@ -1,0 +1,93 @@
+# Continuous delivery: pushing a tag such as v3.0.0 publishes a GitHub release with
+#
+#   DAGonStar-in-Practice-decks-<tag>.zip     the 48 lecture decks and appendix decks A1-A4
+#   DAGonStar-in-Practice-notes-<tag>.zip     the lecture notes (Markdown)
+#   DAGonStar-in-Practice-examples-<tag>.zip  the runnable examples with their recorded outputs
+#   DAGonStar-in-Practice-textbook-<tag>.pdf  the companion textbook
+#
+# Decks, notes and textbook are rebuilt from the tagged sources, so a release never ships stale
+# files.  Run it by hand (workflow_dispatch) to build the bundle as an artifact without releasing.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decks:
+    name: Decks and notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+      - name: Build
+        working-directory: src
+        run: |
+          npm ci
+          node count.js
+          node build.js
+          node notes.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decks-and-notes
+          path: |
+            en/lectures/*.pptx
+            en/notes/*.md
+
+  textbook:
+    name: Textbook
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: en/textbook
+      - uses: actions/upload-artifact@v4
+        with:
+          name: textbook
+          path: en/textbook/main.pdf
+
+  publish:
+    name: Publish
+    needs: [decks, textbook]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: built
+      - name: Bundle
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
+        run: |
+          mkdir -p dist
+          name="DAGonStar-in-Practice"
+          (cd built/decks-and-notes/lectures && zip -qr "$GITHUB_WORKSPACE/dist/$name-decks-$TAG.zip" .)
+          (cd built/decks-and-notes/notes && zip -qr "$GITHUB_WORKSPACE/dist/$name-notes-$TAG.zip" .)
+          zip -qr "dist/$name-examples-$TAG.zip" examples LICENSE -x '*/__pycache__/*'
+          cp built/textbook/main.pdf "dist/$name-textbook-$TAG.pdf"
+          ls -l dist
+      - name: Create the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "DAGonStar in Practice $GITHUB_REF_NAME" --generate-notes --verify-tag
+      - name: Keep the bundle (manual run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/*

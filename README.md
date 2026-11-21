@@ -128,6 +128,24 @@ The content of each deck is in `src/lectures/NN.js` (the cover plus 29 entries);
 slide kinds are in `src/lib.js`. `<code/>` slides read their excerpts from the files in `examples/`,
 and `<result/>` slides show the recorded outputs, so slides and code cannot drift apart.
 
+## Continuous integration and releases
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
+
+- **Examples** (macOS, Python 3.12.10, where the outputs were recorded): `python tools/run_examples.py --strict`
+  fails on a failed example or on an output different from the recorded one.
+- **Decks and notes**: `node count.js`, `node build.js` and `node notes.js`, then checks that the committed
+  decks and notes are byte-identical to what the sources build.
+- **Textbook**: `latexmk` with no undefined references.
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) runs when a tag such as `v3.0.0` is pushed.
+It rebuilds the decks, notes and textbook from the tagged sources and publishes a GitHub release with
+the decks, notes and examples as ZIP files and the textbook as a PDF:
+
+```bash
+git tag v3.0.0 && git push origin v3.0.0
+```
+
 ## Licence
 
 [CC0 1.0 Universal](LICENSE).

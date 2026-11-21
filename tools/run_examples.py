@@ -3,6 +3,7 @@
     python tools/run_examples.py            # run all, compare with the recorded outputs
     python tools/run_examples.py 07 21      # only the examples of lectures 07 and 21
     python tools/run_examples.py --record   # run all and rewrite output/*.txt and README.md
+    python tools/run_examples.py --strict   # also exit with status 1 on a different output (CI)
 
 An example passes when it exits with status 0 (every example ends with its own
 assertions).  Its standard output is compared with examples/NN-*/output/<script>.txt,
@@ -45,6 +46,7 @@ def write_readme(folder):
 
 def main(argv):
     record = "--record" in argv
+    strict = "--strict" in argv
     only = [a for a in argv if not a.startswith("--")]
     failed, changed, count = [], [], 0
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
@@ -75,7 +77,7 @@ def main(argv):
           % (count, len(failed), len(changed)))
     for name in changed:
         print("  changed output:", name)
-    return 1 if failed else 0
+    return 1 if failed or (strict and changed) else 0
 
 
 if __name__ == "__main__":

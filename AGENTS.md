@@ -18,6 +18,7 @@ Follow them so that slides, notes, textbook and code stay correct and say the sa
 | `examples/requirements.txt` | the pinned DAGonStar commit the course is tested against | yes, then re-run every example |
 | `en/textbook/` | the LaTeX textbook | yes |
 | `tools/run_examples.py` | runs and checks every example | yes |
+| `.github/workflows/` | CI checks and the release workflow | yes |
 | `LICENSE`, `README.md`, `AGENTS.md` | licence, overview, these rules | yes |
 
 Never edit generated files: change their source and rebuild.
@@ -52,7 +53,7 @@ Never edit generated files: change their source and rebuild.
 ## 4. Before committing
 
 ```bash
-python tools/run_examples.py                 # 54 examples, 0 failed, 0 different
+python tools/run_examples.py --strict        # 54 examples, 0 failed, 0 different
 cd src && node count.js && node build.js && node notes.js
 cd en/textbook && latexmk -pdf main.tex     # no undefined references
 ```
@@ -62,6 +63,9 @@ overflows, a graph label that PowerPoint would break mid-word); fix the warning,
 Builds are reproducible: rebuilding an unchanged source gives the same `.pptx` bytes, so commit
 every deck that git shows as changed. On macOS, `tools/export_decks_powerpoint.sh A2 A4` exports
 decks to PDF with PowerPoint itself; look at new or changed slides there before committing.
+
+The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push and pull request;
+a pushed `v*` tag publishes a release (`.github/workflows/release.yml`). Keep both green.
 
 ## 5. Style
 
