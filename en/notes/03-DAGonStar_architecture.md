@@ -9,7 +9,7 @@ DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [03
 **Outline**
 
 1. The pieces: Workflow, Task, stager
-2. The DagonTask factory and the fourteen types
+2. The DagonTask factory and the sixteen types
 3. Tasks are threads
 4. Statuses and the life of a task
 5. Stagers and data movers
@@ -52,6 +52,7 @@ DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [03
 | `dagon/stager/` | DataMover, StagerMover and the movers |
 | `dagon/native.py, llm.py, faas.py` | Native, LLM and FaaS tasks |
 | `dagon/web/, iot/, agentic/` | Web, IoT and agentic tasks |
+| `dagon/meta/, volume.py, adhoc.py` | Meta-tasks, volume tasks, ad-hoc file systems |
 | `dagon/dag_tps.py` | Meta-workflows |
 
 ## 7. The Workflow constructor
@@ -92,7 +93,7 @@ print("every task is a Task and a thread:",
 - Extra keyword arguments go to that class
 - Every task is a Task and a Thread
 
-## 10. The fourteen types
+## 10. The sixteen types
 
 Recorded output of `python examples/03-architecture/factory.py`:
 
@@ -111,11 +112,14 @@ web        -> dagon.web.WebTask
 faas       -> dagon.faas.FaaSTask
 iot        -> dagon.iot.IoTTask
 agentic    -> dagon.agentic.task.AgenticTask
+meta       -> dagon.meta.task.MetaTask
+volume     -> dagon.volume.VolumeTask
 ```
 
 - Imported lazily: optional dependencies load only when used
 - Same constructor shape: name, then type-specific arguments
-- Lectures 15-48 use every one of them
+- meta and volume: Appendices A2 and A3
+- Lecture 48 uses every one of them
 
 ## 11. Why a factory
 
@@ -282,14 +286,14 @@ python examples/\
   factory.py
 ```
 
-**Watch for:** Fourteen lines of mapping, then the statuses: READY WAITING RUNNING FINISHED FAILED.
+**Watch for:** Sixteen lines of mapping, then the statuses: READY WAITING RUNNING FINISHED FAILED.
 
 ## 24. The assertion
 
 [`examples/03-architecture/factory.py`](../../examples/03-architecture/factory.py)
 
 ```python
-check(len(TaskType) == 14, "DAGonStar registers 14 task types")
+check(len(TaskType) == 16, "DAGonStar registers 16 task types")
 ```
 
 - If a future version adds a type, this example fails
@@ -325,7 +329,7 @@ check(len(TaskType) == 14, "DAGonStar registers 14 task types")
 
 ## 27. The library in numbers
 
-- **14** - Task types in TaskType
+- **16** - Task types in TaskType
 - **5** - Statuses of a task
 - **11** - Data movers
 
@@ -359,7 +363,7 @@ D. Find where Status is defined in the dagon package
 ## 30. Key takeaways
 
 1. A Workflow owns tasks; a Task is a thread
-2. DagonTask maps fourteen TaskTypes to classes
+2. DagonTask maps sixteen TaskTypes to classes
 3. READY, WAITING, RUNNING, then FINISHED or FAILED
 4. Stagers move workflow:// inputs with a chosen mover
 

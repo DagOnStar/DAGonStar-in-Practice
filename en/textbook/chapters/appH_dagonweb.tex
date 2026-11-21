@@ -1,0 +1,121 @@
+\chapter{DAGonWeb}
+\label{app:dagonweb}
+
+Every workflow in this book is a Python program. DAGonWeb
+(\url{https://github.com/DagOnStar/DAGonWeb}) offers a second way in: a Flask
+and Bootstrap Progressive Web Application in which a workflow is drawn on a
+canvas, saved as a DAGonStar document and executed on the server by the
+DAGonStar runtime. This appendix accompanies course deck~A4. It describes
+DAGonWeb as documented in its repository (\texttt{README.md} and
+\texttt{docs/}), and its example runs a DAGonWeb document with DAGonStar alone.
+
+\begin{cautionbox}[Versions]
+DAGonWeb pins DAGonStar~2.9.4 (commit \texttt{a7e633f}) in its
+\texttt{requirements.txt}. Its palette therefore offers the fourteen task types
+of that version; the meta-tasks and volume tasks of DAGonStar~3.0
+(Appendices~\ref{app:volumes} and~\ref{app:meta-tasks}) are not in it yet. The
+documents it writes load and run with DAGonStar~3.0.0, as the example of this
+appendix shows. Check the pins of both projects before a deployment.
+\end{cautionbox}
+
+\section{What DAGonWeb Does}
+
+A user picks a template or starts from an empty canvas, adds tasks from a
+palette, configures each one in an inspector and draws links between them.
+Every change is saved automatically. \emph{Run} starts the workflow on the
+server; the run page shows the graph updating live, the stage of each task
+(staging inputs, executing, staging outputs), the captured error of a failed
+task, and a file browser over each task's folder with previews for text, JSON,
+CSV, GeoJSON and NetCDF. The palette and the inspector forms are generated from
+one registry, \texttt{app/task\_specs.py}, which also builds the runtime
+\texttt{DagonTask} of each task.
+
+Five task types belong to DAGonWeb itself. \emph{Upload} and \emph{Form} pause
+a run until a user uploads files or answers a form on the run page;
+\emph{Table}, \emph{Chart} and \emph{Download} turn results into a table, a
+chart or download buttons. In the document they are plain DAGonStar
+\texttt{batch} tasks, whose command is a self-contained shell and Python
+script, so the document still loads with DAGonStar.
+
+\section{The Document}
+
+\begin{definitionbox}{DAGonWeb document}
+The DAGonStar task-map document, unchanged, plus additive \texttt{dagonweb}
+keys. A task's \texttt{dagonweb} key holds its canvas position and form
+values; the top-level \texttt{dagonweb.runtime} holds \texttt{max\_threads},
+\texttt{portable\_emulation} and \texttt{pre\_stage}. DAGonStar's
+\texttt{load\_json} ignores the extra keys.
+\end{definitionbox}
+
+Edges are always rebuilt from the document; stored \texttt{prevs} and
+\texttt{nexts} are ignored. A \emph{data link}, drawn solid, is a
+\texttt{workflow:///producer/file} reference: DAGonStar infers the edge and
+stages the file (Lecture~08). An \emph{explicit dependency}, drawn dashed, is
+listed in the consumer's \texttt{explicit\_prevs}: it orders the tasks without
+moving data (Lecture~07). A named input of a batch task, such as
+\texttt{obs = workflow:///fetch/outputs/observations.csv}, is prepended to the
+command as a shell assignment, so the script uses \texttt{\$obs}.
+
+\section{What Run Does}
+
+When a user presses Run, DAGonWeb creates a run record and a folder
+\texttt{run\_<id>/} below the scratch root, and dispatches the run to a thread
+of the web process or, for many concurrent runs, to a Redis queue served by
+worker processes. The run merges the global and the per-workflow
+\texttt{dagon.ini}, forcing \texttt{scratch\_dir\_base} to the run folder;
+builds a \texttt{Workflow} with the runtime options and a checkpoint file
+\texttt{run\_<id>/\_dagonweb/checkpoint.json}; adds a \texttt{DagonTask} per
+task; adds the explicit edges and calls \texttt{make\_dependencies()}; then
+calls \texttt{launch()} and \texttt{wait()}. DAGonStar's event listeners write
+each task's progress into the database. On a failed run, \emph{Resume} reuses
+the same folder and checkpoint, so only the failed task and those after it run
+again; \emph{Run again} starts afresh.
+
+\Cref{lst:dagonweb-document} writes a DAGonWeb document for the station means
+by hand and runs it the way DAGonWeb's executor does. The first run fails on a
+typo in \texttt{report} (in DAGonStar~3.0 a non-zero exit status fails the task
+and its dependants); the corrected document is then resumed from the
+checkpoint.
+
+\lstinputlisting[caption={A DAGonWeb document run by DAGonStar (\texttt{examples/A4-dagonweb/\allowbreak dagonweb\_document.py}).},label={lst:dagonweb-document}]{../../examples/A4-dagonweb/dagonweb_document.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{dagonweb\_document.py}.}]{../../examples/A4-dagonweb/output/dagonweb_document.txt}
+
+The resumed run reused \texttt{fetch} and the three means, and ran only
+\texttt{report} and \texttt{notify}. The explicit edge from \texttt{report} to
+\texttt{notify} survives \texttt{as\_json()}.
+
+\section{Beyond the Canvas}
+
+\paragraph{Exports and imports.} A workflow can be exported as a headless
+application ZIP (a commented DAGonStar program, the JSON document, CWL, a
+\texttt{dagon.ini} with secrets removed, \texttt{requirements.txt} and
+\texttt{run.sh}), as a single Python program that needs only DAGonStar and
+accepts \texttt{--resume}, \texttt{--input} and \texttt{--form}, as DAGonWeb or
+portable DAGonStar JSON, or as CWL~v1.2 through \texttt{saveAsCWL}. DAGonWeb
+imports JSON documents, ZIP applications and Python programs; Python is read by
+static analysis and never executed.
+
+\paragraph{Assistant and dry run.} When an administrator enables an
+OpenAI-compatible LLM endpoint, an assistant with tools designs and edits a
+draft of the workflow from a plain-language description; the canvas changes
+only when the user applies the draft. A dry run checks the graph and the
+references, runs \texttt{bash -n} on shell commands, compiles Python and builds
+the DAGonStar tasks under portable emulation, without executing anything.
+Visitors without an account can dry-run templates in a guest playground.
+
+\paragraph{Deployment.} DAGonWeb runs with Docker Compose, with SQLite,
+PostgreSQL or MySQL. Installed on the login node of a cluster, it runs every
+workflow as the Unix account of the user who starts it: the user adds a key to
+\texttt{\~{}/.ssh/authorized\_keys} that is restricted to the
+\texttt{dagonweb-runner} program, Slurm jobs are submitted as that user, and
+nothing executes inside the DAGonWeb container. Accounts carry roles and
+permissions, sign-in can use single sign-on, every file path is checked
+against the run folder, and the interface is built for WCAG~2.1~AA.
+
+\begin{practicebox}
+A DAGonWeb document is a DAGonStar document. A workflow drawn in the browser
+can therefore be versioned, reviewed, run in continuous integration and
+resumed on a cluster with the same tools used for the Python workflows of
+this book.
+\end{practicebox}

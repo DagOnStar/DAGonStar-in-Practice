@@ -10,7 +10,7 @@ DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [
 
 1. What the course built
 2. The capstone graph
-3. Fourteen task types, one workflow
+3. Sixteen task types, one workflow
 4. Hands-on: run, verify, export
 5. The checklist
 6. Where to go next
@@ -36,7 +36,7 @@ DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [
 
 ## 5. The graph
 
-*Two producers feed fourteen consumers, one per task type.*
+*Two producers feed sixteen consumers, one per task type.*
 
 ## 6. The capstone graph
 
@@ -46,20 +46,22 @@ flowchart LR
   t["table"]
   b["batch...nomad"]
   l["bulletin, publish, archive, buoy"]
+  m["ocean, gulf (meta)"]
   q["qc (agentic)"]
   n["count (native)"]
   f --> b
   f --> l
+  f --> m
   t --> q
   q --> n
 ```
 
 Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependencies.
 
-- fetch: the CSV
-- table: the duplicated JSON
-- qc deduplicates
-- count checks: 4 records
+- fetch: the CSV most types read
+- table: a JSON with a duplicate
+- qc must deduplicate to be accepted
+- count checks what qc published: 4 records
 
 ## 7. Execution task types
 
@@ -138,17 +140,20 @@ TaskType.AGENTIC: DagonTask(TaskType.AGENTIC, "qc", agent="quality-local",
 - IOT: a bounded first_event observation from the mock provider
 - AGENTIC: the quality-local profile, one mandatory requirement on the table
 
-## 11. Why two producers
+## 11. Meta and volume task types
 
-- **fetch** the CSV that most task types read
-- **table** the JSON with a duplicated record
-- **qc** must remove the duplicate to be accepted
-- **count** reads qc's published result
-- **A chain** producer, agent, checker: lecture 28's safer pattern
+[`examples/48-capstone/capstone.py`](../../examples/48-capstone/capstone.py)
 
-> *A check after the agent*
->
-> The native count verifies what the agent published.
+```python
+TaskType.META: DagonTask(TaskType.META, "ocean", engine="nextflow", workflow="nextflow-io/hello",
+                         inputs={"observations": REF},
+                         outputs={"summary": "results/summary.json"}),
+TaskType.VOLUME: DagonTask(TaskType.VOLUME, "gulf", provider="dagonfs", volume="gulf",
+                           stage_in={"observations.csv": REF}),
+```
+
+- META: a Nextflow pipeline, run by the mock engine under emulation (Appendix A3)
+- VOLUME: a DAGonFS volume, a local folder under emulation (Appendix A2)
 
 ## 12. The run
 
@@ -190,23 +195,24 @@ with mock.patch("dagon.agentic.providers.OpenAICompatibleAdapter.propose", side_
 | WEB | Placeholder outputs, no request sent |
 | NATIVE | Runs locally, whatever the executor |
 | AGENTIC | Runs with the profile's mock adapter |
+| META, VOLUME | Mock engine; a folder stands in for the volume |
 
 ## 15. Recorded output
 
 Recorded output of `python examples/48-capstone/capstone.py`:
 
 ```text
-tasks: 16 | failed: []
+tasks: 18 | failed: []
 agent accepted: True | records after QC: 4
 FAIR run covers every task: True
-CWL steps: 16 | scratch path in CWL: False
-{"CWL exported": true, "agent accepted": true, "checkpoint written": true, "live adapters invoked": 0, "task types": 14}
+CWL steps: 18 | scratch path in CWL: False
+{"CWL exported": true, "agent accepted": true, "checkpoint written": true, "live adapters invoked": 0, "task types": 16}
 ```
 
-- 16 tasks, none failed
+- 18 tasks, none failed
 - Accepted, 4 records
 - FAIR covers every task
-- 16 CWL steps, path-free
+- 18 CWL steps, path-free
 - The checklist
 
 ## 16. Evidence
@@ -220,9 +226,9 @@ CWL steps: 16 | scratch path in CWL: False
 | Every task finished | Status of every task: failed = [] |
 | The agent was accepted | qc/outputs/evaluation.json |
 | Quality control worked | count/outputs/count.json = {count: 4} |
-| Provenance is complete | FAIR run.json lists all 16 tasks |
+| Provenance is complete | FAIR run.json lists all 18 tasks |
 | Resumable | checkpoint.json exists |
-| Portable | CWL with 16 steps, no scratch path |
+| Portable | CWL with 18 steps, no scratch path |
 
 ## 18. The checklist
 
@@ -240,13 +246,13 @@ print(json.dumps(checklist, sort_keys=True))
 
 ## 19. Reading the checklist
 
-- **task types 14** every registered TaskType
+- **task types 16** every registered TaskType
 - **agent accepted true** independent evaluation passed
 - **checkpoint written true** a resume would reuse the work
 - **CWL exported true** the graph exists outside DAGonStar
 - **live adapters invoked 0** no model, no network, no account
 
-> **14** - *Task types*
+> **16** - *Task types*
 >
 > One workflow, all of them.
 
@@ -293,6 +299,7 @@ print(json.dumps(checklist, sort_keys=True))
 | Workflow standards | CWL, RO-Crate, W3C PROV |
 | Job-local storage | BeeOND and your site's documentation |
 | Distributed file systems | DAGonFS (Appendix A1) |
+| Volumes, meta-tasks, web GUI | Appendices A2, A3, A4 |
 
 ## 26. Run the capstone
 
@@ -315,8 +322,8 @@ python examples/\
 
 ## 27. The capstone
 
-- **16** - Tasks
-- **14** - Task types
+- **18** - Tasks
+- **16** - Task types
 - **0** - Live calls
 
 ## 28. Final project
@@ -346,7 +353,7 @@ D. Deliver: script, graph, checkpoint, FAIR bundle, CWL
 
 ## 30. Key takeaways
 
-1. Fourteen task types in one graph
+1. Sixteen task types in one graph
 2. Every claim checked against a recorded file
 3. Portable emulation makes the whole graph rehearsable
 4. Go live one task type at a time

@@ -7,10 +7,10 @@ Follow them so that slides, notes, textbook and code stay correct and say the sa
 
 | Path | Content | Edited by hand? |
 |------|---------|-----------------|
-| `src/lectures/NN.js`, `src/lectures/A1.js` | source of lecture NN: cover data and 29 slide descriptions | yes |
+| `src/lectures/NN.js`, `src/lectures/A1.js`-`A4.js` | source of lecture NN: cover data and 29 slide descriptions | yes |
 | `src/lib.js` | deck builder: theme, layouts, slide kinds, layout warnings | yes, with care |
 | `src/build.js`, `src/notes.js`, `src/count.js` | build the decks, write the notes, count the slides | yes, with care |
-| `en/lectures/` | the 48 decks and `A1` (`.pptx`) | **no**: generated |
+| `en/lectures/` | the 48 decks and `A1`-`A4` (`.pptx`) | **no**: generated |
 | `en/notes/` | the lecture notes (Markdown) | **no**: generated |
 | `examples/NN-topic/*.py` | runnable examples, one folder per lecture | yes |
 | `examples/NN-topic/output/*.txt`, `examples/NN-topic/README.md` | recorded outputs and READMEs | **no**: `python tools/run_examples.py --record` |
@@ -25,7 +25,8 @@ Never edit generated files: change their source and rebuild.
 ## 2. Structure of the course
 
 - 48 lectures in four parts of twelve (01-12 Foundations, 13-24 Execution, data and recovery,
-  25-36 Task models for AI-HPC, 37-48 Infrastructure, data and FAIR), plus `A1` on DAGonFS.
+  25-36 Task models for AI-HPC, 37-48 Infrastructure, data and FAIR), plus the appendix decks `A1` DAGonFS, `A2` ad-hoc volumes and streams, `A3` meta-tasks and
+  `A4` DAGonWeb.
 - Every deck has **exactly 30 slides**: the cover plus 29 entries. `node count.js` checks it.
 - Theory and hands-on work are **not** separated. Every lecture introduces a concept and runs it,
   with its own example folder.
@@ -35,7 +36,8 @@ Never edit generated files: change their source and rebuild.
 
 - **The code is the reference.** Every claim about DAGonStar must be checked against its source
   (`dagon/`) at the commit pinned in `examples/requirements.txt`, and every claim about DAGonFS
-  against <https://github.com/DagOnStar/DAGonFS>. Do not describe an option, a default or an
+  against <https://github.com/DagOnStar/DAGonFS>, and every claim about DAGonWeb against
+  <https://github.com/DagOnStar/DAGonWeb>. Do not describe an option, a default or an
   error message you have not read in the source.
 - **Examples are self-checking.** Each script runs in a temporary scratch directory (helpers in
   `examples/common/course.py`), ends with `check(...)` assertions, and needs no external service:
@@ -50,7 +52,7 @@ Never edit generated files: change their source and rebuild.
 ## 4. Before committing
 
 ```bash
-python tools/run_examples.py                 # 50 examples, 0 failed, 0 different
+python tools/run_examples.py                 # 54 examples, 0 failed, 0 different
 cd src && node count.js && node build.js && node notes.js
 cd en/textbook && latexmk -pdf main.tex     # no undefined references
 ```

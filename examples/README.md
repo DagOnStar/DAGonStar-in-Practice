@@ -66,6 +66,9 @@ mocks, local stand-ins or DAGonStar's portable emulation, and the output says so
 | [`47-operations`](47-operations/) | `operations.py` |
 | [`48-capstone`](48-capstone/) | `capstone.py` |
 | [`A1-dagonfs`](A1-dagonfs/) | `block_layout.py`, `dagonfs_workflow.py` |
+| [`A2-volumes`](A2-volumes/) | `local_directory.py`, `volume_task.py` |
+| [`A3-meta`](A3-meta/) | `meta_task.py` (engines in `engines/`) |
+| [`A4-dagonweb`](A4-dagonweb/) | `dagonweb_document.py` |
 
 Shared code:
 

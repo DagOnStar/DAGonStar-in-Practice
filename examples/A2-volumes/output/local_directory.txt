@@ -1,0 +1,4 @@
+scopes: workflow and task
+mean_CAP bound to: gulf,tmp
+result: CAP 16.75
+after the run: gulf exists = False | tmp exists = False

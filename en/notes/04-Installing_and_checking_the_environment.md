@@ -83,9 +83,9 @@ python3 -m venv .venv
 
 ```text
 # The virtual environment that runs every example of the course.
-# DAGonStar is pinned to the commit the course was tested against (v2.9.4).
-dagonstar[docker,kubernetes] @ git+https://github.com/DagOnStar/dagonstar@41029a681d332cc2d690d1c197749e94350ec598
-# Optional: validates the CWL export of lecture 46.
+# DAGonStar is pinned to the commit the course was tested against (v3.0.0).
+dagonstar[docker,kubernetes] @ git+https://github.com/DagOnStar/dagonstar@f62ceea7757ae313ce8d7fc6130896c9e7e83326
+# Optional: validates the CWL export of lecture 46 and runs the CWL meta-task of Appendix A3.
 cwltool==3.2.20260413085819
 ```
 
@@ -103,7 +103,7 @@ cwltool==3.2.20260413085819
 - Works for unreleased fixes
 - Explicit upgrade: change one hash
 
-**dagonstar>=2.9**
+**dagonstar>=3.0**
 
 - Picks up new releases automatically
 - May change behaviour under your feet
@@ -200,9 +200,9 @@ Recorded output of `python examples/04-environment/check_environment.py`:
 
 ```text
 Python 3.12.10 on Darwin
-dagonstar 2.9.4 from dagon
+dagonstar 3.0.0 from dagon
 bash: /bin/bash
-task types: 14
+task types: 16
   optional docker      present
   optional kubernetes  present
   optional libcloud    present
@@ -211,8 +211,8 @@ task types: 14
 ```
 
 - Your Python version may differ
-- dagonstar must be 2.9.4
-- task types: 14
+- dagonstar must be 3.0.0
+- task types: 16
 - Absent extras are fine unless you need them
 
 ## 19. bash_executable()
@@ -286,7 +286,7 @@ elif not expected.is_file() or expected.read_text() != done.stdout:
 |---|---|---|
 | ModuleNotFoundError: dagon | Wrong interpreter | Activate .venv, check which python |
 | ImportError: docker | Extra missing | pip install docker |
-| Version is not 2.9.4 | Old install shadows the pin | pip install --force-reinstall -r ... |
+| Version is not 3.0.0 | Old install shadows the pin | pip install --force-reinstall -r ... |
 | bash not found | Native Windows Python | Use WSL 2 |
 | Permission denied in /tmp | Scratch on a read-only disk | Set scratch_dir_base (lecture 05) |
 

@@ -59,13 +59,13 @@ for launchers can be overridden with \texttt{DAGON\_BASH}. The packaged
 
 \section{The Capstone}
 
-The capstone builds one graph of sixteen tasks that uses every registered
-task type: batch, Slurm, Docker, Apptainer, Kubernetes, Nomad, cloud, web,
-LLM, native, FaaS, IoT and agentic, with remote variants. It runs under
+The capstone builds one graph of eighteen tasks that uses all sixteen
+registered task types: checkpoint, batch, Slurm, cloud, Docker, Kubernetes,
+Apptainer, Nomad, LLM, native, web, FaaS, IoT, agentic, meta and volume. It runs under
 portable emulation with checkpointing and FAIR recording enabled. Every
 network-facing adapter is replaced by a function that fails the test if it is
 called. The run must therefore succeed without a single live call, and the
-CWL export must still describe all sixteen steps.
+CWL export must still describe all eighteen steps.
 
 \lstinputlisting[caption={Lecture 48: the capstone (\texttt{examples/48-capstone/capstone.py}).},label={lst:capstone}]{../../examples/48-capstone/capstone.py}
 

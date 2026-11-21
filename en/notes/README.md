@@ -54,5 +54,8 @@ Code excerpts are read from `examples/`; outputs are those recorded by `tools/ru
 | 47 | [Operating DAGonStar](47-Operating_DAGonStar.md) | 4 |
 | 48 | [Capstone](48-Capstone.md) | 4 |
 | A1 | [DAGonFS](A1-DAGonFS.md) | A |
+| A2 | [Ad-hoc volumes and streams](A2-Ad_hoc_volumes_and_streams.md) | A |
+| A3 | [Meta-tasks](A3-Meta_tasks.md) | A |
+| A4 | [DAGonWeb](A4-DAGonWeb.md) | A |
 
 Regenerate with `cd src && node notes.js`.

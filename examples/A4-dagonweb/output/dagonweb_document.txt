@@ -1,0 +1,10 @@
+document keys: ['dagonweb', 'host', 'id', 'name', 'tasks'] | mean_CAP command:
+  obs=workflow:///fetch/outputs/observations.csv ;
+  awk -F, -v s=CAP '$1==s{t+=$3;n++}END{printf "%s %.2f\n", s, t/n}' $obs > CAP.txt
+data edges into report: ['mean_CAP', 'mean_ISC', 'mean_NAP']
+notify runs after: ['report'] (explicit, no data)
+run 1: {'fetch': 'FINISHED', 'mean_NAP': 'FINISHED', 'mean_CAP': 'FINISHED', 'mean_ISC': 'FINISHED', 'report': 'FAILED', 'notify': 'FAILED'}
+run 2: {'fetch': 'FINISHED', 'mean_NAP': 'FINISHED', 'mean_CAP': 'FINISHED', 'mean_ISC': 'FINISHED', 'report': 'FINISHED', 'notify': 'FINISHED'}
+reused from run 1: ['fetch', 'mean_CAP', 'mean_ISC', 'mean_NAP']
+report: NAP 15.50 | CAP 16.75 | ISC 15.75
+as_json keeps the explicit edge: ['report']

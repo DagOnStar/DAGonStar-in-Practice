@@ -1,0 +1,186 @@
+\chapter{Ad-hoc Volumes and Streams}
+\label{app:volumes}
+
+Appendix~\ref{app:dagonfs} put the whole scratch directory of a workflow on a
+DAGonFS mount. DAGonStar~3.0 goes further. It has one interface for ad-hoc
+storage systems, so a workflow can start a volume, bind some of its tasks to
+it, and stop it again. A volume can also be a node of the graph, created and
+destroyed by tasks of the new type \texttt{TaskType.VOLUME}, and shared through
+the ordinary \texttt{workflow://} schema. This appendix accompanies course
+deck~A2. Its sources are \texttt{dagon/adhoc.py}, \texttt{dagon/volume.py} and
+\texttt{dagon/streaming.py}, and the documents
+\texttt{docs/adhoc\_filesystems.md} and \texttt{docs/volume\_tasks.md} of the
+DAGonStar repository.
+
+\section{One Interface for Many Storage Systems}
+
+DAGonStar owns only the invocation, the readiness check, the shutdown and the
+environment of the tasks bound to a resource. The storage software stays
+separately installed: DAGonStar does not vendor, patch or deploy it. Five
+providers are built in.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Provider & Access mode & Note \\
+\midrule
+\texttt{dagonfs} & posix, client or preload & frontends \texttt{fuse3}, \texttt{native}, \texttt{preload} \\
+\texttt{beeond} & posix & only inside a Slurm allocation (Lecture~42) \\
+\texttt{hercules} & preload & an interception library in \texttt{LD\_PRELOAD} \\
+\texttt{capio} & preload & an interception library in \texttt{LD\_PRELOAD} \\
+\texttt{dynostore} & object & keys in a catalog, no path to open \\
+\bottomrule
+\end{tabular}
+\caption{The built-in ad-hoc providers of DAGonStar~3.0.0.}
+\label{tab:adhoc-providers}
+\end{table}
+
+The access mode tells a task how to reach the data. A \emph{posix} resource is
+an ordinary mounted directory. A \emph{preload} resource intercepts the file
+calls of the programs its library is loaded into; the shell redirections of the
+launcher are not intercepted, so a task writes through a program such as
+\texttt{cp} or \texttt{tee}. A \emph{client} resource needs a client protocol,
+and an \emph{object} resource is a store of keys.
+
+\begin{sloppypar}
+Every bound task receives
+\texttt{DAGON\_ADHOC\_PATH}, \texttt{DAGON\_ADHOC\_ACCESS},
+\texttt{DAGON\_ADHOC\_PROVIDER} and the same variables for each named resource,
+\texttt{DAGON\_ADHOC\_<NAME>\_PATH}. With \texttt{export="GULF"} the path is also
+exported under a name of your choice. Variables that look like credentials are
+refused.
+\end{sloppypar}
+
+\begin{cautionbox}[Built-in names are protected]
+In DAGonStar~3.0 the names \texttt{dagonfs}, \texttt{beeond},
+\texttt{hercules}, \texttt{capio} and \texttt{dynostore} cannot be replaced,
+not even with \texttt{register\_provider(..., replace=True)}. Register your own
+adapter under another name.
+\end{cautionbox}
+
+\subsection{Scopes}
+
+\begin{sloppypar}
+A resource has one of three scopes. A \emph{workflow} resource, created with
+\texttt{Workflow.create\_adhoc\_filesystem}, starts before the first task and
+stops after the last; \texttt{bind(task)} selects its users, or
+\texttt{default=True} binds every task. A \emph{task} resource, created with
+\texttt{Task.create\_adhoc\_filesystem}, starts just before its task and stops
+right after it, also when the task fails. A \emph{volume} resource is created by
+a volume task (\Cref{sec:volume-tasks}).
+\end{sloppypar}
+
+\section{Writing an Adapter}
+
+A new storage system needs one subclass of
+\texttt{dagon.adhoc.AdHocFileSystem} and one call to
+\texttt{register\_provider}. \Cref{lst:local-directory} serves a plain local
+directory, so it runs on any laptop; the rest of this appendix uses it as a
+real, if modest, provider. The same file binds a workflow-scope volume
+\texttt{gulf} to two tasks and gives \texttt{mean\_CAP} a private task-scope
+volume \texttt{tmp}.
+
+\lstinputlisting[caption={An ad-hoc adapter and two scopes (\texttt{examples/A2-volumes/local\_directory.py}).},label={lst:local-directory}]{../../examples/A2-volumes/local_directory.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{local\_directory.py}.}]{../../examples/A2-volumes/output/local_directory.txt}
+
+The Capri mean, $(16.0+16.5+17.0+17.5)/4 = 16.75$, was read from the shared
+volume, and both directories were removed when their resources stopped.
+
+\section{Volume Tasks}
+\label{sec:volume-tasks}
+
+A volume task creates, or destroys, one volume as a node of the graph:
+
+\begin{lstlisting}
+gulf = DagonTask(TaskType.VOLUME, "Gulf", provider="local-directory", volume="gulf",
+                 stage_in={"inputs/observations.csv": "workflow:///fetch/outputs/observations.csv"})
+\end{lstlisting}
+
+When it runs, it starts the volume, waits until the provider is ready and
+copies each \texttt{stage\_in} entry into it. Each stage-in source creates a
+dependency on its producer, as any \texttt{workflow://} reference does.
+
+\begin{definitionbox}{A reference into a volume}
+\sloppy
+\texttt{workflow:///Gulf/gulf/means/CAP.txt} is the file \texttt{means/CAP.txt}
+inside the volume \texttt{gulf} created by the volume task \texttt{Gulf}. The
+schema keeps its meaning (workflow, task, path in the task's data space)
+because the volume appears in \texttt{Gulf}'s folder under its own name. Only
+the transfer changes: a command task is bound to the volume and its reference
+is rewritten to the location inside it. Nothing is copied, so several tasks may
+read and write the same volume.
+\end{definitionbox}
+
+A volume ends in one of two ways. A \emph{destroy} task
+(\texttt{action="destroy"}) receives a dependency on every task that uses the
+volume, copies its \texttt{stage\_out} entries into its own folder and releases
+the volume; later tasks read the copies as ordinary files. Without a destroy
+task the volume is released by \emph{reference counting}, as soon as the last
+task that refers to it has finished, and in any case when the workflow ends,
+also after a failure. Client and object volumes (DAGonFS \texttt{native},
+DynoStore) have no path that a command could open, so references into them are
+refused; such volumes are used through \texttt{stage\_in}, \texttt{stage\_out},
+streams and \texttt{attach()}.
+
+\section{Streams}
+
+\begin{sloppypar}
+A provider that supports streaming carries streams between tasks bound to the
+volume. The producer publishes items to \texttt{\$DAGON\_STREAM\_OUT} with
+\texttt{python -m dagon.adhoc stream publish}; the consumer names the volume in
+the query of its reference, \texttt{workflow:///split/stations?stream=gulf},
+and reads each item once with \texttt{stream items}. The consumer starts as
+soon as the producer's launcher runs. The protocol is rename-free: the producer
+writes a numbered marker after each complete item, so items become visible in
+publication order, and the launcher writes an end marker with the command's
+exit status, so a failed producer fails its consumers.
+\end{sloppypar}
+
+\section{The Station Means on a Volume}
+
+\Cref{lst:volume-task} runs the station means of Lecture~12 on a volume. Three
+tasks write into the same volume, a fourth streams the records of each station
+to a fifth, and \texttt{Collect} stages the means out before releasing the
+volume. A second run builds the same graph for the \texttt{dagonfs} provider
+under portable emulation, without a destroy task.
+
+\lstinputlisting[caption={Volume tasks and a stream (\texttt{examples/A2-volumes/volume\_task.py}).},label={lst:volume-task}]{../../examples/A2-volumes/volume_task.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{volume\_task.py}.}]{../../examples/A2-volumes/output/volume_task.txt}
+
+The means can be checked by hand from the dataset: Naples
+$(14+15+16+17)/4 = 15.50$, Capri $16.75$, Ischia $(15+15.5+16+16.5)/4 = 15.75$.
+The stream carried $3 \times 4 = 12$ records.
+
+\begin{cautionbox}[Writes inside a volume make no edge]
+A reference into the volume creates a dependency on the volume task, not on
+the task that wrote the file. In the first run, \texttt{report} reads the
+copies made by \texttt{Collect}, which waits for every user, so the order is
+right. In the second run there is no destroy task: without the explicit edges
+added by \texttt{add\_dependency\_to}, \texttt{report} could read the means
+before they exist. This is the same rule as for BeeOND workflow volumes in
+Lecture~42.
+\end{cautionbox}
+
+\section{Checkpoints, JSON, CWL and FAIR}
+
+A volume does not survive the process. A create task's checkpoint is reused
+only when it records the same specification and every user's checkpoint is
+also complete; otherwise the volume is created again. A destroy task's
+checkpoint is reused only after the SHA-256 digests of its staged outputs are
+verified again. Both actions survive \texttt{as\_json()} and
+\texttt{load\_json()}. CWL~v1.2 has no shared mutable storage, so the exporter
+materializes the volume as a \texttt{Directory} output of the create step and
+records the intent in a \texttt{dagon:Volume} hint; data written into the
+volume by sibling steps is not exchanged through CWL. FAIR records mark the
+edges served by a volume with \texttt{"transfer": "volume"}.
+
+\begin{practicebox}
+Under portable emulation a local directory stands in for the volume and no
+provider is started. An emulated run checks the graph, the references and the
+release; it is not evidence that the provider ran. The DAGonStar repository
+records live runs of DAGonFS volume tasks in
+\texttt{docs/performance/}.
+\end{practicebox}

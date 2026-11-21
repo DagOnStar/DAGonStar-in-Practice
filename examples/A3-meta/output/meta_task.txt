@@ -1,0 +1,7 @@
+engine: command | outputs: ['outputs/means.csv']
+means.csv: station,mean_c | NAP,15.50 | CAP,16.75 | ISC,15.75
+warmest: CAP,16.75
+cwltool counted 12 records
+second run reused the meta-task: True
+refused at construction: MetaValidationError
+emulated: True | placeholder for engine: nextflow

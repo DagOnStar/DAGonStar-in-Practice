@@ -37,6 +37,7 @@ const TYPE_COLOURS = {
   batch: "14508C", slurm: "B4532A", native: "0E7C7B", web: "7A3E9D", llm: "9C2F6B",
   faas: "C08A00", iot: "2E7D32", agentic: "5B3F9E", docker: "1F5FA8", apptainer: "6D4C41",
   kubernetes: "326CE5", nomad: "00A36C", cloud: "4A6572", checkpoint: "62677F", data: "8A8F99",
+  meta: "8E5B00", volume: "00796B",
   state: "62677F", finished: "2E7D32", failed: "B3261E", reused: "8A8F99",
 };
 

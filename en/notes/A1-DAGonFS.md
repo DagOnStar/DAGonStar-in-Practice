@@ -281,10 +281,10 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 
 ## 22. Integration rules
 
-- **Start first** mount before DAGonStar creates task folders
-- **Scratch** scratch_dir_base inside the mount
-- **Client-server** tasks run on the node of rank 0
-- **Peer-to-peer** each task uses its own node's mountpoint(r)
+- **Whole scratch** mount first, then scratch_dir_base inside it (this example)
+- **Built-in provider** since DAGonStar 3.0: create_adhoc_filesystem("dagonfs", ranks=4)
+- **Volume task** TaskType.VOLUME, provider="dagonfs" (Appendix A2)
+- **Frontends** fuse3 (posix), native (client), preload
 - **Stage out** copy results to persistent storage before unmounting
 
 > *Volatile by design*
@@ -379,7 +379,7 @@ D. Which mountpoint must each task use?
 3. Blocks are placed by arithmetic on size and ranks
 4. DAGonStar runs unchanged on the mount; stage out at the end
 
-*The textbook's Appendix E has the details*
+*Next: Appendix A2, volume tasks; details in the textbook's Appendix E*
 
 ---
 

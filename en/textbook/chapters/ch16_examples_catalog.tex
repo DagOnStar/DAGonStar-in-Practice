@@ -87,6 +87,10 @@ python tools/run_examples.py --record   # rewrite output/*.txt and the READMEs
 \texttt{48-capstone/capstone.py} & every registered TaskType in one checkpointed, FAIR-recorded graph\ldots \\
 \texttt{A1-dagonfs/block\_layout.py} & the DAGonFS block layout, computed from (S, P) alone \\
 \texttt{A1-dagonfs/dagonfs\_workflow.py} & a DAGonStar workflow whose scratch lives on a DAGonFS volume \\
+\texttt{A2-volumes/local\_directory.py} & an ad-hoc adapter; workflow- and task-scope volumes \\
+\texttt{A2-volumes/volume\_task.py} & volume tasks: create, share, stream, destroy, reference counting \\
+\texttt{A3-meta/meta\_task.py} & meta-tasks: a command-line engine, a CWL tool, an emulated Nextflow \\
+\texttt{A4-dagonweb/dagonweb\_document.py} & a DAGonWeb document loaded, run and resumed by DAGonStar \\
 \bottomrule
 \end{longtable}
 }
@@ -94,7 +98,7 @@ python tools/run_examples.py --record   # rewrite output/*.txt and the READMEs
 The upstream repository (\url{https://github.com/DagOnStar/dagonstar}) keeps
 its own example families: taskflow and dataflow examples, Docker, Slurm,
 cloud and Globus dataflows, transversal and meta-workflows, the HiPES
-tutorial, environmental applications, and a 32-lesson tutorial
+tutorial, environmental applications, and a 36-lesson tutorial
 (\texttt{docs/tutorial/}, \texttt{examples/tutorial/}). They are a natural
 next step once the course examples are familiar.
 

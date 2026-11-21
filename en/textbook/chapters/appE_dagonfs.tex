@@ -119,6 +119,17 @@ example does with \texttt{report.txt}. The last line of the output is read
 \emph{after} the volume is gone, from the persistent copy.
 \end{cautionbox}
 
+\begin{sloppypar}
+Mounting the volume first and pointing \texttt{scratch\_dir\_base} into it
+puts the whole workflow on DAGonFS. Since version~3.0, DAGonStar also starts and
+stops DAGonFS itself, through its built-in \texttt{dagonfs} ad-hoc provider:
+\texttt{Workflow.create\_adhoc\_filesystem("dagonfs", ranks=4)} binds a volume
+to selected tasks, and a \texttt{TaskType.VOLUME} task with
+\texttt{provider="dagonfs"} makes the volume a node of the graph. The provider
+supports the \texttt{fuse3}, \texttt{native} and \texttt{preload} frontends.
+Appendix~\ref{app:volumes} describes both mechanisms.
+\end{sloppypar}
+
 \section{Building and Running}
 
 DAGonFS requires CMake~3.20 or later, a C++23 compiler, MPI (Open MPI~4.1 or

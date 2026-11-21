@@ -1,5 +1,6 @@
 """Lecture 48 capstone: every registered TaskType in one checkpointed,
-FAIR-recorded graph under portable emulation, an accepted agentic step, a
+FAIR-recorded graph under portable emulation (the meta-task's Nextflow engine and the
+volume task's DAGonFS provider are emulated too), an accepted agentic step, a
 CWL export and a checklist.  No live adapter or network call is made."""
 import json
 import sys
@@ -63,6 +64,11 @@ def every_task_type():
                                         inputs={"source": TABLE},
                                         requirements=[{"id": "complete", "evaluator": "record_coverage",
                                                        "expected": {"count": 4}, "mandatory": True}]),
+            TaskType.META: DagonTask(TaskType.META, "ocean", engine="nextflow", workflow="nextflow-io/hello",
+                                     inputs={"observations": REF},
+                                     outputs={"summary": "results/summary.json"}),
+            TaskType.VOLUME: DagonTask(TaskType.VOLUME, "gulf", provider="dagonfs", volume="gulf",
+                                       stage_in={"observations.csv": REF}),
         }
 
 

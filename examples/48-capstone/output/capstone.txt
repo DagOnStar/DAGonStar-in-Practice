@@ -1,5 +1,5 @@
-tasks: 16 | failed: []
+tasks: 18 | failed: []
 agent accepted: True | records after QC: 4
 FAIR run covers every task: True
-CWL steps: 16 | scratch path in CWL: False
-{"CWL exported": true, "agent accepted": true, "checkpoint written": true, "live adapters invoked": 0, "task types": 14}
+CWL steps: 18 | scratch path in CWL: False
+{"CWL exported": true, "agent accepted": true, "checkpoint written": true, "live adapters invoked": 0, "task types": 16}

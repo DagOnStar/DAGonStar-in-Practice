@@ -1,0 +1,119 @@
+\chapter{Meta-tasks: Workflows of Other Engines}
+\label{app:meta-tasks}
+
+Lecture~22 composed several DAGonStar workflows with \texttt{DAG\_TPS}. Many
+useful pipelines, however, are already written for another engine: Nextflow,
+Snakemake, Parsl, StreamFlow or a CWL runner. DAGonStar~3.0 runs such a
+workflow, unmodified, as one task of type \texttt{TaskType.META}. Data moves in
+and out through ordinary \texttt{workflow://} references, so the external
+workflow is a node of the DAGonStar graph like any other task. This appendix
+accompanies course deck~A3; its sources are \texttt{dagon/meta/} and
+\texttt{docs/meta\_tasks.md} of the DAGonStar repository.
+
+\section{Two Properties by Construction}
+
+\begin{definitionbox}{Meta-task}
+A task that runs a complete workflow written for another engine through the
+engine's documented command line. The engine is never modified: DAGonStar
+writes the engine's own parameter files (a Nextflow \texttt{-params-file}, a
+Snakemake \texttt{--configfile}, a CWL job document, a Python call for Parsl).
+Every engine-specific detail lives in one \emph{adapter}; staging, output
+collection, checkpoints, FAIR records, JSON and CWL behave the same for all
+engines.
+\end{definitionbox}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\texttt{engine} & What runs & Inputs reach the workflow as \\
+\midrule
+\texttt{nextflow} & \texttt{nextflow run} with a params file & \texttt{params.<name>} \\
+\texttt{snakemake} & \texttt{snakemake --configfile} & \texttt{config["<name>"]} \\
+\texttt{parsl} & a Python function or script & keyword arguments \\
+\texttt{streamflow} & \texttt{streamflow run} & a CWL job document \\
+\texttt{cwl} & \texttt{cwltool} or another CWL runner & a CWL job document \\
+\texttt{command} & any argument vector & a JSON parameter file \\
+\texttt{mock} & no process & placeholders (portable emulation) \\
+\bottomrule
+\end{tabular}
+\caption{The built-in meta-task adapters of DAGonStar~3.0.0.}
+\label{tab:meta-adapters}
+\end{table}
+
+\section{The Task}
+
+A meta-task takes an \texttt{engine}, a \texttt{workflow} (a local file or
+directory, or, for engines that resolve names themselves, a name such as
+\texttt{nextflow-io/hello}), \texttt{inputs}, \texttt{outputs} and
+\texttt{engine\_options}. An input whose value is a \texttt{workflow://} string
+is a staged file or directory; any other JSON value is passed through. An
+output maps a name to a path below \texttt{outputs/}, or to a descriptor with
+\texttt{path}, \texttt{source} (where the engine writes, relative to its
+working directory \texttt{run/}) and \texttt{engine\_output} (an output the
+engine reports by name). Options the adapter does not declare are rejected, and
+so are keys that look like credentials: every validation error is a
+\texttt{MetaValidationError}, raised when the task is created.
+
+The lifecycle has five steps. A dependency is added for each producer named by
+an input; inputs are staged to \texttt{inputs/<name>/}; the adapter writes the
+engine's parameter files under \texttt{.dagon/} and runs the engine in
+\texttt{run/}, without a shell and with the task timeout; each declared output
+is copied from \texttt{run/<source>} to \texttt{outputs/<path>} and hashed with
+SHA-256; and \texttt{.dagon/meta\_result.json} records the engine, the workflow
+identity, the digests and the duration. A failure is classified in
+\texttt{task.failure\_phase} as \texttt{validation}, \texttt{engine},
+\texttt{staging}, \texttt{execution} or \texttt{outputs}, and a failed meta-task
+fails its dependants.
+
+\section{Three Engines on the Station Data}
+
+The course example has two real engines and one emulated. The first is a
+stand-in program that knows nothing about DAGonStar (\Cref{lst:station-engine}),
+driven by the generic \texttt{command} adapter. The second is a CWL tool
+(\Cref{lst:count-records}), run by \texttt{cwltool} when it is installed. The
+third is a Nextflow pipeline under portable emulation.
+
+\lstinputlisting[caption={A stand-in engine (\texttt{examples/A3-meta/engines/station\_engine.py}).},label={lst:station-engine}]{../../examples/A3-meta/engines/station_engine.py}
+
+\lstinputlisting[style=bash,caption={A CWL tool (\texttt{examples/A3-meta/engines/count\_records.cwl}).},label={lst:count-records}]{../../examples/A3-meta/engines/count_records.cwl}
+
+\lstinputlisting[caption={Meta-tasks on the station data (\texttt{examples/A3-meta/meta\_task.py}).},label={lst:meta-task}]{../../examples/A3-meta/meta_task.py}
+
+\lstinputlisting[style=bash,caption={Recorded output of \texttt{meta\_task.py}.}]{../../examples/A3-meta/output/meta_task.txt}
+
+The means match those of Appendix~\ref{app:volumes} and Lecture~12, and the CWL
+tool counts the $3 \times 4 = 12$ data records of the dataset.
+
+\section{Checkpoints and Evidence}
+
+A completed meta-task is reused only when everything can be verified again:
+the effective specification has the same SHA-256; the workflow definition is
+local and has the same digest (a remote workflow always runs again); every
+input, re-read from its producer's current folder, has the recorded digest;
+and every collected output still exists with its recorded digest. A successful
+folder alone is never enough, and checkpoints of emulated and real runs are
+never mixed. The engine's own resume mechanism, such as Nextflow's
+\texttt{resume}, is independent and opt-in through \texttt{engine\_options}.
+
+\begin{practicebox}
+Site defaults go into \texttt{dagon.ini}, in one section per engine:
+\texttt{[meta.nextflow]} with \texttt{executable}, \texttt{[meta.parsl]} with
+\texttt{python}. Task options take precedence, and the effective values are part
+of the checkpoint identity.
+\end{practicebox}
+
+Under portable emulation the \texttt{mock} adapter starts no engine and writes
+one JSON placeholder per declared output, marked as emulated in
+\texttt{meta\_result.json}, in the checkpoint and in FAIR records. With FAIR
+recording on, each collected output is an artifact with its checksum, and the
+RO-Crate action of the task names the external workflow as its instrument.
+\texttt{saveAsCWL} exports a meta-task as a \texttt{CommandLineTool} that runs
+\texttt{dagon-meta-runner}, with a \texttt{dagon:MetaTask} hint; the engine and
+the workflow definition must then be installed on the CWL execution host.
+
+\begin{cautionbox}[What a meta-task does not see]
+DAGonStar records the inputs, outputs and identity of the external workflow,
+not what happens inside it. The engine's own provenance, such as a Nextflow
+report or the StreamFlow database, stays in the task's scratch folder.
+\end{cautionbox}

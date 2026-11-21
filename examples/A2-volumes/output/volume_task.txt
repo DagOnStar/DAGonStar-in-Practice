@@ -1,0 +1,8 @@
+Gulf after: ['fetch']
+Collect after: ['Gulf', 'count', 'mean_CAP', 'mean_ISC', 'mean_NAP', 'split']
+bound to gulf: ['Collect', 'Gulf', 'count', 'mean_CAP', 'mean_ISC', 'mean_NAP', 'split']
+report: NAP 15.50 | CAP 16.75 | ISC 15.75
+count read 12 records while split ran; streams from: ['split']
+volume gulf: destroyed by Collect
+emulated dagonfs report: NAP 15.50 | CAP 16.75 | ISC 15.75
+volume gulf: no task refers to it

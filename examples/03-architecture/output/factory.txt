@@ -12,6 +12,8 @@ web        -> dagon.web.WebTask
 faas       -> dagon.faas.FaaSTask
 iot        -> dagon.iot.IoTTask
 agentic    -> dagon.agentic.task.AgenticTask
+meta       -> dagon.meta.task.MetaTask
+volume     -> dagon.volume.VolumeTask
 DagonTask(BATCH) builds Batch
 DagonTask(SLURM) builds Slurm
 every task is a Task and a thread: True

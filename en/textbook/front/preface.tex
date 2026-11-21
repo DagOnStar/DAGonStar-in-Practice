@@ -55,6 +55,9 @@ each lecture is treated.
   pre-staging, movers & \ref{ch:hpc-storage} \\
 45--48 & FAIR, CWL, operations, capstone & \ref{ch:fair-cwl} \\
 A1 & DAGonFS & Appendix~\ref{app:dagonfs} \\
+A2 & Ad-hoc volumes and streams & Appendix~\ref{app:volumes} \\
+A3 & Meta-tasks & Appendix~\ref{app:meta-tasks} \\
+A4 & DAGonWeb & Appendix~\ref{app:dagonweb} \\
 \bottomrule
 \end{tabular}
 \caption{Course map: lectures and the chapters that treat them.}
@@ -66,7 +69,8 @@ environmental case study (\Cref{ch:case-study}), the examples catalog
 (\Cref{ch:examples-catalog}) and the synthesis (\Cref{ch:synthesis}) connect
 the lectures to research practice. Appendices~A--D collect reference
 material: the public API, developer practices, the configuration model and
-checkpoint semantics. Appendix~E presents DAGonFS.
+checkpoint semantics. Appendix~E presents DAGonFS, Appendix~F ad-hoc volumes
+and streams, Appendix~G meta-tasks and Appendix~H DAGonWeb.
 
 \paragraph{Intended audience.}
 This book is written for graduate students, researchers, and research software
@@ -78,7 +82,7 @@ assumed; no prior exposure to workflow engines is required.
 \paragraph{A note on fidelity to the software.}
 Every course example is included in this book with \texttt{lstinputlisting}
 from the course repository, and so is its recorded output. The examples were
-written for and checked against DAGonStar~2.9.4
+written for and checked against DAGonStar~3.0.0
 (\url{https://github.com/DagOnStar/dagonstar}). The script
 \texttt{tools/run\_examples.py} runs them all again and reports any output
 that differs from the recorded one. Where the software has a limitation,

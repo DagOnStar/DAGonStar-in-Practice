@@ -127,14 +127,14 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 
 - **Origin** DAGon* began at the University of Naples “Parthenope” for environmental modelling
 - **Python API** you build the workflow in Python, or load it from JSON
-- **Task types** batch, Slurm, cloud, containers, web, LLM, FaaS, IoT, agentic, native
+- **Task types** batch, Slurm, cloud, containers, web, LLM, FaaS, IoT, agentic, native, meta, volume
 - **Data model** tasks reference each other's files with workflow:// URLs
 - **Robustness** checkpoints, resume, dry runs, portable emulation
 - **Openness** Apache-2.0 licence, exports to JSON and CWL
 
-> **2.9** - *The version used in this course*
+> **3.0** - *The version used in this course*
 >
-> Every example is tested with DAGonStar 2.9.4, pinned in examples/requirements.txt.
+> Every example is tested with DAGonStar 3.0.0, pinned in examples/requirements.txt.
 
 ## 14. Fourteen task types
 

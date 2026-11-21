@@ -1,11 +1,11 @@
 # DAGonStar in Practice
 
 Orchestrating AI-HPC workflows for computational environmental science: a course of 48 one-hour
-lectures, plus one appendix lecture on DAGonFS. Each lecture has a PowerPoint deck of exactly
+lectures, plus four appendix lectures: DAGonFS, ad-hoc volumes and streams, meta-tasks, and DAGonWeb. Each lecture has a PowerPoint deck of exactly
 30 slides. Theory and hands-on work are not split into separate lessons: every lecture introduces a
 concept and runs it at once. The material is aligned with
-[DAGonStar](https://github.com/DagOnStar/dagonstar) 2.9.4 and
-[DAGonFS](https://github.com/DagOnStar/DAGonFS).
+[DAGonStar](https://github.com/DagOnStar/dagonstar) 3.0.0,
+[DAGonFS](https://github.com/DagOnStar/DAGonFS) and [DAGonWeb](https://github.com/DagOnStar/DAGonWeb).
 
 Participants are expected to program in Python and to use a terminal. Basic knowledge of SSH and of
 an HPC scheduler helps in Part IV, but every example also runs on a laptop.
@@ -66,14 +66,17 @@ an HPC scheduler helps in Part IV, but every example also runs on a laptop.
 | 48 | Capstone | `48-capstone` |
 | | **Appendix** | |
 | A1 | DAGonFS | `A1-dagonfs` |
+| A2 | Ad-hoc volumes and streams | `A2-volumes` |
+| A3 | Meta-tasks | `A3-meta` |
+| A4 | DAGonWeb | `A4-dagonweb` |
 
 ## Folders
 
 | Folder | Content |
 |--------|---------|
-| [`en/lectures/`](en/lectures/) | the 48 lecture decks and the DAGonFS deck `A1` (`.pptx`, 16:9, 30 slides each, editable text, speaker notes) |
+| [`en/lectures/`](en/lectures/) | the 48 lecture decks and the appendix decks `A1`-`A4` (`.pptx`, 16:9, 30 slides each, editable text, speaker notes) |
 | [`en/notes/`](en/notes/) | the notes of each lecture, slide by slide, in Markdown |
-| [`en/textbook/`](en/textbook/) | the companion textbook in LaTeX: four parts that follow the lectures, appendices A-E (E is DAGonFS); every course example and its recorded output are included from `examples/`; `main.pdf` is the latest build |
+| [`en/textbook/`](en/textbook/) | the companion textbook in LaTeX: four parts that follow the lectures, appendices A-H (E DAGonFS, F ad-hoc volumes, G meta-tasks, H DAGonWeb); every course example and its recorded output are included from `examples/`; `main.pdf` is the latest build |
 | [`examples/`](examples/) | one folder per lecture, each with a `README.md`, the scripts and their recorded output in `output/`; `common/` holds the shared helpers and `data/` the Gulf of Naples dataset |
 | [`tools/`](tools/) | `run_examples.py`, which runs every example and compares it with its recorded output |
 | [`src/`](src/) | the generator of the decks and the notes |
@@ -82,7 +85,8 @@ an HPC scheduler helps in Part IV, but every example also runs on a laptop.
 A single running case, hourly observations from three stations of the Gulf of Naples (Naples `NAP`,
 Capri `CAP`, Ischia `ISC`), runs through the whole course: a script, a DAG, a station pipeline,
 sweeps and ensembles, web, LLM, FaaS and IoT tasks, an agentic quality check, Slurm, BeeOND and
-DAGonFS scratch spaces, a FAIR bundle and a CWL export.
+DAGonFS scratch spaces, ad-hoc volumes, meta-tasks running other engines' workflows, a FAIR bundle,
+a CWL export and a DAGonWeb workflow document.
 
 ## Running the examples
 
@@ -99,7 +103,9 @@ external service: Docker, Slurm, Kubernetes, Nomad, SSH hosts, clouds and live L
 providers are replaced by mocks, local stand-ins or DAGonStar's portable emulation, and the output
 says so. `DAGON_LIVE_DOCKER=1` also runs the Docker example against a real daemon. On a Linux node
 with MPI, FUSE 3 and a DAGonFS build, `DAGONFS_PYTHON=/path/to/DAGonFS/python` and
-`DAGONFS=/path/to/dagonfs` make `A1-dagonfs/dagonfs_workflow.py` run on a real DAGonFS volume.
+`DAGONFS=/path/to/dagonfs` make `A1-dagonfs/dagonfs_workflow.py` run on a real DAGonFS volume (the recorded output was made
+with `DAGONFS_PYTHON` set on a host without DAGonFS, so it shows the launch command it would use).
+`A3-meta/meta_task.py` runs its CWL step only when `cwltool` is on `PATH`.
 
 ## Rebuilding
 
@@ -107,7 +113,7 @@ with MPI, FUSE 3 and a DAGonFS build, `DAGONFS_PYTHON=/path/to/DAGonFS/python` a
 cd src
 npm install
 node count.js                  # every deck has exactly 30 slides
-node build.js                  # decks -> en/lectures (`node build.js 7 12 A1` for some)
+node build.js                  # decks -> en/lectures (`node build.js 7 12 A4` for some)
 node notes.js                  # notes -> en/notes
 ```
 
