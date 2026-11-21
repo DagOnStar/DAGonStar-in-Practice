@@ -49,19 +49,20 @@ DAGonStar in Practice - Appendix. Slides: [A4-DAGonStar-DAGonWeb.pptx](../lectur
 | Category | Task types |
 |---|---|
 | Shell & HPC | Batch, Slurm, Checkpoint |
-| Containers | Docker, Kubernetes, Apptainer, Nomad |
-| Cloud, web, devices | Cloud, FaaS, Web, IoT |
+| Containers & orchestrators | Docker, Kubernetes, Apptainer, Nomad |
+| Cloud, web & devices | Cloud, FaaS, Web, IoT |
 | Python & AI | Native, LLM, Agentic |
+| Volumes & meta-workflows | Volume, Meta |
 | DAGonWeb interactive | Upload, Form, Table, Chart, Download |
 
 > **Generated from one registry** app/task_specs.py builds the palette, the forms and each DagonTask.
 
 ## 7. Versions
 
-- **DAGonWeb pins** DAGonStar 2.9.4 (commit a7e633f) in its requirements.txt
-- **So the palette has** the 14 task types of 2.9.4
-- **Not yet in it** TaskType.META and TaskType.VOLUME of 3.0 (Appendices A2, A3)
-- **Its documents** load and run with DAGonStar 3.0.0: this appendix's example
+- **DAGonWeb pins** DAGonStar 3.0.0 (commit f62ceea) in its requirements.txt
+- **So the palette has** all 16 task types, plus the 5 interactive ones
+- **Volume** create or destroy a volume: dagonfs, hercules, capio, dynostore (A2)
+- **Meta** run a command, Nextflow, Snakemake, Parsl, StreamFlow or CWL workflow (A3)
 - **Check** the pins of both projects before deploying
 
 > *The code is the reference*

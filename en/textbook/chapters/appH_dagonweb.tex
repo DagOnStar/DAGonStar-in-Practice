@@ -10,12 +10,11 @@ DAGonWeb as documented in its repository (\texttt{README.md} and
 \texttt{docs/}), and its example runs a DAGonWeb document with DAGonStar alone.
 
 \begin{cautionbox}[Versions]
-DAGonWeb pins DAGonStar~2.9.4 (commit \texttt{a7e633f}) in its
-\texttt{requirements.txt}. Its palette therefore offers the fourteen task types
-of that version; the meta-tasks and volume tasks of DAGonStar~3.0
-(Appendices~\ref{app:volumes} and~\ref{app:meta-tasks}) are not in it yet. The
-documents it writes load and run with DAGonStar~3.0.0, as the example of this
-appendix shows. Check the pins of both projects before a deployment.
+DAGonWeb pins DAGonStar~3.0.0 (commit \texttt{f62ceea}) in its
+\texttt{requirements.txt}. Its palette offers all sixteen task types of that
+version, including the volume tasks and meta-tasks of
+Appendices~\ref{app:volumes} and~\ref{app:meta-tasks}. Check the pins of both
+projects before a deployment.
 \end{cautionbox}
 
 \section{What DAGonWeb Does}
@@ -29,6 +28,17 @@ task, and a file browser over each task's folder with previews for text, JSON,
 CSV, GeoJSON and NetCDF. The palette and the inspector forms are generated from
 one registry, \texttt{app/task\_specs.py}, which also builds the runtime
 \texttt{DagonTask} of each task.
+
+The category \emph{Volumes \& meta-workflows} holds the two task types new in
+DAGonStar~3.0. A \emph{Volume} task creates an ad-hoc volume with the
+\texttt{dagonfs}, \texttt{hercules}, \texttt{capio} or \texttt{dynostore}
+provider and stages data into it, or destroys a volume and stages its results
+out; the document stores the specification under the task's \texttt{volume}
+key. A \emph{Meta} task runs a command-line, Nextflow, Snakemake, Parsl,
+StreamFlow or CWL workflow unmodified; its specification is stored under the
+\texttt{meta} key. Both are the keys that DAGonStar's \texttt{load\_json} reads,
+and under portable emulation a local directory and the mock engine stand in
+for the volume and the engine.
 
 Five task types belong to DAGonWeb itself. \emph{Upload} and \emph{Form} pause
 a run until a user uploads files or answers a form on the run page;
