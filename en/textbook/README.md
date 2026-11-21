@@ -45,6 +45,7 @@ listings, and all `\Cref`/`\ref` cross-references are fully resolved.)
 main.tex                  Document class, preamble, packages, chapter includes
 front/version.tex         Version number, date and version history
 front/colophon.tex        Verso of the title page: version, use case, licence, history
+figures/                  the cover image (DAGonWeb workflow editor)
 front/abstract.tex        Front-matter abstract
 front/preface.tex         Front-matter preface
 front/bibliography.tex    Back-matter bibliography & source provenance
@@ -58,8 +59,11 @@ chapters/app*.tex          appendices A-H (E: DAGonFS, F: ad-hoc volumes,
 The document uses only packages available in a standard, full TeX Live /
 Overleaf installation: `tikz`, `listings`, `tcolorbox`, `hyperref`,
 `cleveref`, `booktabs`, `enumitem`, `microtype`, `fancyhdr`, `titlesec`,
-`epigraph`, `appendix`. No external image files are required — all figures
-are generated inline with TikZ.
+`epigraph`, `appendix`. All figures in the chapters are generated inline with
+TikZ. The only image file is the cover, `figures/dagonweb-cover.png`: the
+DAGonWeb workflow editor, cropped from `docs/images/volume-editor.png` of
+https://github.com/DagOnStar/DAGonWeb (Apache License 2.0, credited in
+`front/colophon.tex`).
 
 ## Content provenance
 
