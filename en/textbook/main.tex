@@ -135,11 +135,22 @@
 %==============================================================
 % TITLE DATA
 %==============================================================
+% Version number, date and history of the book: front/version.tex.
+\input{front/version}
+\hypersetup{
+  pdftitle={Workflows in Practice with DAGonStar},
+  pdfsubject={Orchestrating AI-HPC Workflows for Computational Science, version \bookversion},
+  pdfauthor={Raffaele Montella},
+  pdfkeywords={DAGonStar, scientific workflows, AI-HPC, environmental computational science}
+}
+\fancyfoot[C]{\footnotesize\color{gray}Version \bookversion}
+
 \title{
   \vspace{-1.5cm}
-  {\Huge\bfseries DAGonStar in Practice}\\[0.6em]
-  {\Large Orchestrating AI--HPC Workflows for\\ Computational Environmental Science}\\[1.2em]
-  {\large A Textbook on Scientific Workflow Engineering}
+  {\Huge\bfseries Workflows in Practice with DAGonStar}\\[0.6em]
+  {\Large Orchestrating AI--HPC Workflows for Computational Science}\\[1.2em]
+  {\large A Textbook on Scientific Workflow Engineering}\\[0.4em]
+  {\normalsize\itshape Use case: environmental computational science}
 }
 \author{
   Prof.\ Raffaele Montella \\
@@ -149,7 +160,7 @@
   \small \texttt{raffaele.montella@uniparthenope.it} \\[1em]
   \small \textit{Companion textbook of the 48-lecture course, aligned with DAGonStar 3.0.0}
 }
-\date{\today}
+\date{Version \bookversion\ --- \bookdate}
 
 %==============================================================
 % DOCUMENT
@@ -158,6 +169,7 @@
 
 \frontmatter
 \maketitle
+\input{front/colophon}
 
 \input{front/abstract}
 \tableofcontents

@@ -2,7 +2,7 @@
 
 *What a failing task stops, what it does not, and how a fixed workflow resumes from where it broke*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [16-DAGonStar-Failures.pptx](../lectures/16-DAGonStar-Failures.pptx). Examples: [examples/16-failures](../../examples/16-failures/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [16-DAGonStar-Failures.pptx](../lectures/16-DAGonStar-Failures.pptx). Examples: [examples/16-failures](../../examples/16-failures/).
 
 ## 2. Today's lecture
 

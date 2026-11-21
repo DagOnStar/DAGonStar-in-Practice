@@ -2,7 +2,7 @@
 
 *A BATCH task from construction to FINISHED: its command, its working directory, its status and its output*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [06-DAGonStar-The_first_local_task.pptx](../lectures/06-DAGonStar-The_first_local_task.pptx). Examples: [examples/06-first-task](../../examples/06-first-task/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [06-DAGonStar-The_first_local_task.pptx](../lectures/06-DAGonStar-The_first_local_task.pptx). Examples: [examples/06-first-task](../../examples/06-first-task/).
 
 ## 2. Today's lecture
 

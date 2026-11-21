@@ -2,7 +2,7 @@
 
 *Why science runs as graphs of tasks, what DAGonStar adds, and how the 48 lectures fit together*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [01-DAGonStar-Scientific_workflows_for_AI_HPC.pptx](../lectures/01-DAGonStar-Scientific_workflows_for_AI_HPC.pptx). Examples: [examples/01-hello](../../examples/01-hello/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [01-DAGonStar-Scientific_workflows_for_AI_HPC.pptx](../lectures/01-DAGonStar-Scientific_workflows_for_AI_HPC.pptx). Examples: [examples/01-hello](../../examples/01-hello/).
 
 ## 2. Today's lecture
 

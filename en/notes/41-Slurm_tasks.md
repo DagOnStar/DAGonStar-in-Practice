@@ -2,7 +2,7 @@
 
 *Submitting workflow steps to an HPC scheduler: sbatch options, waiting with -W, exit codes and testing without a cluster*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [41-DAGonStar-Slurm_tasks.pptx](../lectures/41-DAGonStar-Slurm_tasks.pptx). Examples: [examples/41-slurm](../../examples/41-slurm/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [41-DAGonStar-Slurm_tasks.pptx](../lectures/41-DAGonStar-Slurm_tasks.pptx). Examples: [examples/41-slurm](../../examples/41-slurm/).
 
 ## 2. Today's lecture
 

@@ -2,7 +2,7 @@
 
 *Declared tools, runtime invariants checked before every action, repairable and blocking violations, and nothing published on failure*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [34-DAGonStar-Agentic_tools_and_guardrails.pptx](../lectures/34-DAGonStar-Agentic_tools_and_guardrails.pptx). Examples: [examples/34-agentic-guardrails](../../examples/34-agentic-guardrails/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [34-DAGonStar-Agentic_tools_and_guardrails.pptx](../lectures/34-DAGonStar-Agentic_tools_and_guardrails.pptx). Examples: [examples/34-agentic-guardrails](../../examples/34-agentic-guardrails/).
 
 ## 2. Today's lecture
 

@@ -2,7 +2,7 @@
 
 *Generating tasks from parameters: one native summary per station, merged by a fan-in function*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [20-DAGonStar-Parameter_sweeps.pptx](../lectures/20-DAGonStar-Parameter_sweeps.pptx). Examples: [examples/20-sweep](../../examples/20-sweep/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [20-DAGonStar-Parameter_sweeps.pptx](../lectures/20-DAGonStar-Parameter_sweeps.pptx). Examples: [examples/20-sweep](../../examples/20-sweep/).
 
 ## 2. Today's lecture
 

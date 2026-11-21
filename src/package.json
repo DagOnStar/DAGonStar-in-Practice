@@ -1,7 +1,7 @@
 {
   "name": "dagonstar-in-practice-slides",
   "private": true,
-  "description": "Generator of the DAGonStar in Practice teaching material: 48 lecture decks of 30 slides, a DAGonFS appendix deck and the lecture notes",
+  "description": "Generator of the Workflows in Practice with DAGonStar teaching material: 48 lecture decks of 30 slides, a DAGonFS appendix deck and the lecture notes",
   "scripts": {
     "build": "node build.js",
     "notes": "node notes.js",

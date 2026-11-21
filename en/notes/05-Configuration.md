@@ -2,7 +2,7 @@
 
 *dagon.ini sections, configuration dictionaries, the scratch base and logging, with the same workflow configured both ways*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [05-DAGonStar-Configuration.pptx](../lectures/05-DAGonStar-Configuration.pptx). Examples: [examples/05-configuration](../../examples/05-configuration/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [05-DAGonStar-Configuration.pptx](../lectures/05-DAGonStar-Configuration.pptx). Examples: [examples/05-configuration](../../examples/05-configuration/).
 
 ## 2. Today's lecture
 

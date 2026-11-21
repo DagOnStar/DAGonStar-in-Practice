@@ -1,9 +1,12 @@
-# Continuous delivery: pushing a tag such as v3.0.0 publishes a GitHub release with
+# Continuous delivery: pushing a tag such as v1.0.0 publishes a GitHub release with
 #
-#   DAGonStar-in-Practice-decks-<tag>.zip     the 48 lecture decks and appendix decks A1-A4
-#   DAGonStar-in-Practice-notes-<tag>.zip     the lecture notes (Markdown)
-#   DAGonStar-in-Practice-examples-<tag>.zip  the runnable examples with their recorded outputs
-#   DAGonStar-in-Practice-textbook-<tag>.pdf  the companion textbook
+#   Workflows_in_Practice_with_DAGonStar-decks-<tag>.zip     the 48 lecture decks and appendix decks A1-A4
+#   Workflows_in_Practice_with_DAGonStar-notes-<tag>.zip     the lecture notes (Markdown)
+#   Workflows_in_Practice_with_DAGonStar-examples-<tag>.zip  the runnable examples with their recorded outputs
+#   Workflows_in_Practice_with_DAGonStar.pdf                 the companion textbook
+#
+# The tag is the version of the book: it must be v followed by \bookversion of
+# en/textbook/front/version.tex (for example v1.0.0), or the release stops.
 #
 # Decks, notes and textbook are rebuilt from the tagged sources, so a release never ships stale
 # files.  Run it by hand (workflow_dispatch) to build the bundle as an artifact without releasing.
@@ -18,6 +21,21 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Tag matches the book version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare the tag with front/version.tex
+        run: |
+          version=$(sed -n 's/^\\newcommand{\\bookversion}{\(.*\)}$/\1/p' en/textbook/front/version.tex)
+          echo "book version: $version"
+          test -n "$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match book version v$version" >&2
+            exit 1
+          fi
+
   decks:
     name: Decks and notes
     runs-on: ubuntu-latest
@@ -56,11 +74,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: textbook
-          path: en/textbook/main.pdf
+          path: en/textbook/Workflows_in_Practice_with_DAGonStar.pdf
 
   publish:
     name: Publish
-    needs: [decks, textbook]
+    needs: [version, decks, textbook]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -74,17 +92,17 @@ jobs:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
         run: |
           mkdir -p dist
-          name="DAGonStar-in-Practice"
+          name="Workflows_in_Practice_with_DAGonStar"
           (cd built/decks-and-notes/lectures && zip -qr "$GITHUB_WORKSPACE/dist/$name-decks-$TAG.zip" .)
           (cd built/decks-and-notes/notes && zip -qr "$GITHUB_WORKSPACE/dist/$name-notes-$TAG.zip" .)
           zip -qr "dist/$name-examples-$TAG.zip" examples LICENSE -x '*/__pycache__/*'
-          cp built/textbook/main.pdf "dist/$name-textbook-$TAG.pdf"
+          cp built/textbook/Workflows_in_Practice_with_DAGonStar.pdf dist/
           ls -l dist
       - name: Create the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "DAGonStar in Practice $GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "Workflows in Practice with DAGonStar $GITHUB_REF_NAME" --generate-notes --verify-tag
       - name: Keep the bundle (manual run)
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4

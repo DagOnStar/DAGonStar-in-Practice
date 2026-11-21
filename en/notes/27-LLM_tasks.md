@@ -2,7 +2,7 @@
 
 *Calling an OpenAI-compatible chat model from a workflow: prompt templates, staged inputs, providers and replies*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [27-DAGonStar-LLM_tasks.pptx](../lectures/27-DAGonStar-LLM_tasks.pptx). Examples: [examples/27-llm](../../examples/27-llm/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [27-DAGonStar-LLM_tasks.pptx](../lectures/27-DAGonStar-LLM_tasks.pptx). Examples: [examples/27-llm](../../examples/27-llm/).
 
 ## 2. Today's lecture
 

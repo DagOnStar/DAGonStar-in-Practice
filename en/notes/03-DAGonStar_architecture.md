@@ -2,7 +2,7 @@
 
 *Workflow, tasks, the factory, statuses, stagers and the reference schema, read from the running library*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [03-DAGonStar-DAGonStar_architecture.pptx](../lectures/03-DAGonStar-DAGonStar_architecture.pptx). Examples: [examples/03-architecture](../../examples/03-architecture/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [03-DAGonStar-DAGonStar_architecture.pptx](../lectures/03-DAGonStar-DAGonStar_architecture.pptx). Examples: [examples/03-architecture](../../examples/03-architecture/).
 
 ## 2. Today's lecture
 

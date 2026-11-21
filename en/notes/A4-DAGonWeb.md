@@ -2,7 +2,7 @@
 
 *A web GUI for DAGonStar: draw a workflow, save it as a DAGonStar document, run it on a server or an HPC cluster, follow it live and export it*
 
-DAGonStar in Practice - Appendix. Slides: [A4-DAGonStar-DAGonWeb.pptx](../lectures/A4-DAGonStar-DAGonWeb.pptx). Examples: [examples/A4-dagonweb](../../examples/A4-dagonweb/).
+Workflows in Practice with DAGonStar - Appendix. Slides: [A4-DAGonStar-DAGonWeb.pptx](../lectures/A4-DAGonStar-DAGonWeb.pptx). Examples: [examples/A4-dagonweb](../../examples/A4-dagonweb/).
 
 ## 2. Today's lecture
 

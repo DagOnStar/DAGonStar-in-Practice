@@ -2,7 +2,7 @@
 
 *launch() and wait() to keep the caller free, and listeners that observe every step of every task*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [17-DAGonStar-Asynchronous_runs_and_events.pptx](../lectures/17-DAGonStar-Asynchronous_runs_and_events.pptx). Examples: [examples/17-async](../../examples/17-async/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [17-DAGonStar-Asynchronous_runs_and_events.pptx](../lectures/17-DAGonStar-Asynchronous_runs_and_events.pptx). Examples: [examples/17-async](../../examples/17-async/).
 
 ## 2. Today's lecture
 

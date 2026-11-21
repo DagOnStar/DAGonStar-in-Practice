@@ -1,6 +1,7 @@
-# DAGonStar in Practice
+# Workflows in Practice with DAGonStar
 
-Orchestrating AI-HPC workflows for computational environmental science: a course of 48 one-hour
+Orchestrating AI–HPC workflows for computational science, with environmental computational science
+as the use case: a course of 48 one-hour
 lectures, plus four appendix lectures: DAGonFS, ad-hoc volumes and streams, meta-tasks, and DAGonWeb. Each lecture has a PowerPoint deck of exactly
 30 slides. Theory and hands-on work are not split into separate lessons: every lecture introduces a
 concept and runs it at once. The material is aligned with
@@ -76,7 +77,7 @@ an HPC scheduler helps in Part IV, but every example also runs on a laptop.
 |--------|---------|
 | [`en/lectures/`](en/lectures/) | the 48 lecture decks and the appendix decks `A1`-`A4` (`.pptx`, 16:9, 30 slides each, editable text, speaker notes) |
 | [`en/notes/`](en/notes/) | the notes of each lecture, slide by slide, in Markdown |
-| [`en/textbook/`](en/textbook/) | the companion textbook in LaTeX: four parts that follow the lectures, appendices A-H (E DAGonFS, F ad-hoc volumes, G meta-tasks, H DAGonWeb); every course example and its recorded output are included from `examples/`; `main.pdf` is the latest build |
+| [`en/textbook/`](en/textbook/) | the companion textbook in LaTeX: four parts that follow the lectures, appendices A-H (E DAGonFS, F ad-hoc volumes, G meta-tasks, H DAGonWeb); every course example and its recorded output are included from `examples/`; [`Workflows_in_Practice_with_DAGonStar.pdf`](en/textbook/Workflows_in_Practice_with_DAGonStar.pdf) is the latest build |
 | [`examples/`](examples/) | one folder per lecture, each with a `README.md`, the scripts and their recorded output in `output/`; `common/` holds the shared helpers and `data/` the Gulf of Naples dataset |
 | [`tools/`](tools/) | `run_examples.py`, which runs every example and compares it with its recorded output; `export_decks_powerpoint.sh`, which exports decks to PDF with PowerPoint (macOS) |
 | [`src/`](src/) | the generator of the decks and the notes |
@@ -124,6 +125,10 @@ to see how the slides really render.
 cd en/textbook && latexmk -pdf main.tex
 ```
 
+The textbook is titled *Workflows in Practice with DAGonStar: Orchestrating AI–HPC Workflows for
+Computational Science*, with environmental computational science as its use case. `latexmk` writes it
+to `Workflows_in_Practice_with_DAGonStar.pdf` (the name is set in `en/textbook/.latexmkrc`).
+
 The content of each deck is in `src/lectures/NN.js` (the cover plus 29 entries); theme, layouts and
 slide kinds are in `src/lib.js`. `<code/>` slides read their excerpts from the files in `examples/`,
 and `<result/>` slides show the recorded outputs, so slides and code cannot drift apart.
@@ -138,12 +143,23 @@ and `<result/>` slides show the recorded outputs, so slides and code cannot drif
   decks and notes are byte-identical to what the sources build.
 - **Textbook**: `latexmk` with no undefined references.
 
-[`.github/workflows/release.yml`](.github/workflows/release.yml) runs when a tag such as `v3.0.0` is pushed.
-It rebuilds the decks, notes and textbook from the tagged sources and publishes a GitHub release with
-the decks, notes and examples as ZIP files and the textbook as a PDF:
+## Versioning
+
+The textbook carries a version number in semantic versioning (`MAJOR.MINOR.PATCH`), kept in
+[`en/textbook/front/version.tex`](en/textbook/front/version.tex) together with its date and history.
+The version is printed on the title page, on the verso of the title page with the version history, in
+the page footers and in the PDF metadata. A major version is a new edition, a minor version adds
+material, a patch version corrects it.
+
+To release a version, bump `\bookversion` and `\bookdate`, add a row to `\bookhistory`, commit, and tag
+the commit with `v` followed by the version.
+[`.github/workflows/release.yml`](.github/workflows/release.yml) refuses a tag that differs from
+`\bookversion`, rebuilds the decks, notes and textbook from the tagged sources and publishes a GitHub
+release with the decks, notes and examples as ZIP files and the textbook as
+`Workflows_in_Practice_with_DAGonStar.pdf`:
 
 ```bash
-git tag v3.0.0 && git push origin v3.0.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 ## Licence

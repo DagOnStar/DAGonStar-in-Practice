@@ -2,7 +2,7 @@
 
 *The JSON form of a workflow, reloading it, task times and a first look at events*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [11-DAGonStar-Serialising_and_inspecting_workflows.pptx](../lectures/11-DAGonStar-Serialising_and_inspecting_workflows.pptx). Examples: [examples/11-inspect](../../examples/11-inspect/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [11-DAGonStar-Serialising_and_inspecting_workflows.pptx](../lectures/11-DAGonStar-Serialising_and_inspecting_workflows.pptx). Examples: [examples/11-inspect](../../examples/11-inspect/).
 
 ## 2. Today's lecture
 

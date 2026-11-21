@@ -2,7 +2,7 @@
 
 *Perturbed members, an ensemble mean and a spread: uncertainty as a workflow*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [21-DAGonStar-Ensembles.pptx](../lectures/21-DAGonStar-Ensembles.pptx). Examples: [examples/21-ensemble](../../examples/21-ensemble/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [21-DAGonStar-Ensembles.pptx](../lectures/21-DAGonStar-Ensembles.pptx). Examples: [examples/21-ensemble](../../examples/21-ensemble/).
 
 ## 2. Today's lecture
 

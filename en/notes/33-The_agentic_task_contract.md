@@ -2,7 +2,7 @@
 
 *Agents as supervised workflow steps: profiles in dagon.ini, a declared contract, a bounded loop and independent evaluation*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [33-DAGonStar-The_agentic_task_contract.pptx](../lectures/33-DAGonStar-The_agentic_task_contract.pptx). Examples: [examples/33-agentic-contract](../../examples/33-agentic-contract/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [33-DAGonStar-The_agentic_task_contract.pptx](../lectures/33-DAGonStar-The_agentic_task_contract.pptx). Examples: [examples/33-agentic-contract](../../examples/33-agentic-contract/).
 
 ## 2. Today's lecture
 

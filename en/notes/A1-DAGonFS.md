@@ -2,7 +2,7 @@
 
 *An ad-hoc, in-memory, MPI-distributed file system for workflow scratch data, and how DAGonStar uses it*
 
-DAGonStar in Practice - Appendix. Slides: [A1-DAGonStar-DAGonFS.pptx](../lectures/A1-DAGonStar-DAGonFS.pptx). Examples: [examples/A1-dagonfs](../../examples/A1-dagonfs/).
+Workflows in Practice with DAGonStar - Appendix. Slides: [A1-DAGonStar-DAGonFS.pptx](../lectures/A1-DAGonStar-DAGonFS.pptx). Examples: [examples/A1-dagonfs](../../examples/A1-dagonfs/).
 
 ## 2. Today's lecture
 

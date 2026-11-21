@@ -2,7 +2,7 @@
 
 *Running steps on other machines over SSH, safe remote commands, and provisioning cloud instances with an optional extra*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [40-DAGonStar-Remote_and_cloud_tasks.pptx](../lectures/40-DAGonStar-Remote_and_cloud_tasks.pptx). Examples: [examples/40-remote](../../examples/40-remote/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [40-DAGonStar-Remote_and_cloud_tasks.pptx](../lectures/40-DAGonStar-Remote_and_cloud_tasks.pptx). Examples: [examples/40-remote](../../examples/40-remote/).
 
 ## 2. Today's lecture
 

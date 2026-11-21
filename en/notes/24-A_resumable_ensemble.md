@@ -2,7 +2,7 @@
 
 *Part 2 put together: an ensemble with checkpoints, a resume that reruns nothing, and the stale-checkpoint trap*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [24-DAGonStar-A_resumable_ensemble.pptx](../lectures/24-DAGonStar-A_resumable_ensemble.pptx). Examples: [examples/24-resumable-ensemble](../../examples/24-resumable-ensemble/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [24-DAGonStar-A_resumable_ensemble.pptx](../lectures/24-DAGonStar-A_resumable_ensemble.pptx). Examples: [examples/24-resumable-ensemble](../../examples/24-resumable-ensemble/).
 
 ## 2. Today's lecture
 

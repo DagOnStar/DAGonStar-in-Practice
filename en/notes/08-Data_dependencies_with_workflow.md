@@ -2,7 +2,7 @@
 
 *How a reference in a command becomes an edge, a staged copy and a rewritten path*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [08-DAGonStar-Data_dependencies_with_workflow.pptx](../lectures/08-DAGonStar-Data_dependencies_with_workflow.pptx). Examples: [examples/08-dataflow](../../examples/08-dataflow/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [08-DAGonStar-Data_dependencies_with_workflow.pptx](../lectures/08-DAGonStar-Data_dependencies_with_workflow.pptx). Examples: [examples/08-dataflow](../../examples/08-dataflow/).
 
 ## 2. Today's lecture
 

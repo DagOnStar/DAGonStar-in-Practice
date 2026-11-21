@@ -2,7 +2,7 @@
 
 *Workflow steps on container orchestrators: long-lived pods with exec, batch jobs with resources, logs and purge*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [39-DAGonStar-Kubernetes_and_Nomad.pptx](../lectures/39-DAGonStar-Kubernetes_and_Nomad.pptx). Examples: [examples/39-orchestrators](../../examples/39-orchestrators/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [39-DAGonStar-Kubernetes_and_Nomad.pptx](../lectures/39-DAGonStar-Kubernetes_and_Nomad.pptx). Examples: [examples/39-orchestrators](../../examples/39-orchestrators/).
 
 ## 2. Today's lecture
 

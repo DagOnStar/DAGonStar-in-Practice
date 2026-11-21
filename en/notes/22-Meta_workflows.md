@@ -2,7 +2,7 @@
 
 *Composing workflows with DAG_TPS: cross-workflow references, transversal points and one run for all*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [22-DAGonStar-Meta_workflows.pptx](../lectures/22-DAGonStar-Meta_workflows.pptx). Examples: [examples/22-meta](../../examples/22-meta/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [22-DAGonStar-Meta_workflows.pptx](../lectures/22-DAGonStar-Meta_workflows.pptx). Examples: [examples/22-meta](../../examples/22-meta/).
 
 ## 2. Today's lecture
 

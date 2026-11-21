@@ -2,7 +2,7 @@
 
 *COPY, LINK and DONTMOVE on the same graph, how the stager chooses a mover, and the NORMAL, PARALLEL and SLURM modes*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [13-DAGonStar-Staging_modes.pptx](../lectures/13-DAGonStar-Staging_modes.pptx). Examples: [examples/13-staging](../../examples/13-staging/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [13-DAGonStar-Staging_modes.pptx](../lectures/13-DAGonStar-Staging_modes.pptx). Examples: [examples/13-staging](../../examples/13-staging/).
 
 ## 2. Today's lecture
 

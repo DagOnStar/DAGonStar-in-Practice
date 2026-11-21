@@ -2,7 +2,7 @@
 
 *Reference counting on task folders, remove_dir, and what the collector really does to the scratch*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [14-DAGonStar-Garbage_collection.pptx](../lectures/14-DAGonStar-Garbage_collection.pptx). Examples: [examples/14-garbage](../../examples/14-garbage/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [14-DAGonStar-Garbage_collection.pptx](../lectures/14-DAGonStar-Garbage_collection.pptx). Examples: [examples/14-garbage](../../examples/14-garbage/).
 
 ## 2. Today's lecture
 

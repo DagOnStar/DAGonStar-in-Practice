@@ -2,7 +2,7 @@
 
 *What an LLM task records and never records, provider-free rehearsals, and the rules for using model output in science*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [28-DAGonStar-Responsible_LLM_tasks.pptx](../lectures/28-DAGonStar-Responsible_LLM_tasks.pptx). Examples: [examples/28-llm-audit](../../examples/28-llm-audit/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [28-DAGonStar-Responsible_LLM_tasks.pptx](../lectures/28-DAGonStar-Responsible_LLM_tasks.pptx). Examples: [examples/28-llm-audit](../../examples/28-llm-audit/).
 
 ## 2. Today's lecture
 

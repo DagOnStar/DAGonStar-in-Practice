@@ -2,7 +2,7 @@
 
 *A deterministic CWL v1.2 document from a DAGonStar workflow: steps, ordering by completion flags, containers and validation with cwltool*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [46-DAGonStar-Exporting_to_CWL.pptx](../lectures/46-DAGonStar-Exporting_to_CWL.pptx). Examples: [examples/46-cwl](../../examples/46-cwl/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [46-DAGonStar-Exporting_to_CWL.pptx](../lectures/46-DAGonStar-Exporting_to_CWL.pptx). Examples: [examples/46-cwl](../../examples/46-cwl/).
 
 ## 2. Today's lecture
 

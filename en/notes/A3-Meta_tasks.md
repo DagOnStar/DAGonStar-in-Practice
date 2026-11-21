@@ -2,7 +2,7 @@
 
 *DAGonStar 3.0: Nextflow, Snakemake, Parsl, StreamFlow, CWL or any command-line workflow, unmodified, as one task of a DAGonStar graph*
 
-DAGonStar in Practice - Appendix. Slides: [A3-DAGonStar-Meta_tasks.pptx](../lectures/A3-DAGonStar-Meta_tasks.pptx). Examples: [examples/A3-meta](../../examples/A3-meta/).
+Workflows in Practice with DAGonStar - Appendix. Slides: [A3-DAGonStar-Meta_tasks.pptx](../lectures/A3-DAGonStar-Meta_tasks.pptx). Examples: [examples/A3-meta](../../examples/A3-meta/).
 
 ## 2. Today's lecture
 

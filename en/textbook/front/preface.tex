@@ -22,6 +22,27 @@ scripts cannot: explicit dependency graphs, automatic data staging, cycle
 detection, checkpointing, and a uniform mechanism --- the \texttt{workflow://}
 schema --- for expressing that one task consumes a file produced by another.
 
+\paragraph{The use case: environmental computational science.}
+DAGonStar is a general-purpose engine, and the subtitle of this book speaks of
+computational science as a whole. The book, however, teaches it on one
+domain: environmental computational science. Weather and ocean forecasting,
+air- and water-quality monitoring and coastal hazard assessment combine all
+the ingredients a workflow engine must handle: observations arriving from
+sensor networks, numerical models that need an HPC cluster, data products
+that must be archived and published, and, more and more, AI services that
+summarize or flag what the models produce.
+
+The running case is the Gulf of Naples dataset
+(\texttt{examples/data/gulf\_of\_naples.csv}): hourly temperature and wind
+records of three coastal stations, \texttt{NAP} (Naples), \texttt{CAP}
+(Capri) and \texttt{ISC} (Ischia), on 2 November 2026. The dataset is small
+and synthetic on purpose, so that every mean, spread or score shown in the book
+can be checked by hand. The same stations come back throughout the course:
+they are averaged by the station pipeline in Part~I, staged, checkpointed and
+swept in Part~II, handed to Web, FaaS and agentic tasks in Part~III, and sent
+to a Slurm cluster and described with FAIR metadata in Part~IV. \Cref{ch:case-study} then
+shows the same patterns at the scale of a real forecasting chain.
+
 \paragraph{How this book is organized.}
 The book accompanies a course of 48 lectures plus one appendix lecture. Each
 lecture has a slide deck of 30 slides (\texttt{en/lectures/}), speaker notes

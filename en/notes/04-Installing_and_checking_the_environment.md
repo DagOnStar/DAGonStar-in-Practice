@@ -2,7 +2,7 @@
 
 *A pinned, reproducible installation of DAGonStar and a script that proves it works*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [04-DAGonStar-Installing_and_checking_the_environment.pptx](../lectures/04-DAGonStar-Installing_and_checking_the_environment.pptx). Examples: [examples/04-environment](../../examples/04-environment/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [04-DAGonStar-Installing_and_checking_the_environment.pptx](../lectures/04-DAGonStar-Installing_and_checking_the_environment.pptx). Examples: [examples/04-environment](../../examples/04-environment/).
 
 ## 2. Today's lecture
 

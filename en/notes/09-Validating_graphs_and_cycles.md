@@ -2,7 +2,7 @@
 
 *Why a workflow cannot loop, how Validate_WF finds a cycle, and how iterative science is unrolled into a DAG*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [09-DAGonStar-Validating_graphs_and_cycles.pptx](../lectures/09-DAGonStar-Validating_graphs_and_cycles.pptx). Examples: [examples/09-cycles](../../examples/09-cycles/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [09-DAGonStar-Validating_graphs_and_cycles.pptx](../lectures/09-DAGonStar-Validating_graphs_and_cycles.pptx). Examples: [examples/09-cycles](../../examples/09-cycles/).
 
 ## 2. Today's lecture
 

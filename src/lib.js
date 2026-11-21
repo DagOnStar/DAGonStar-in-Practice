@@ -1,4 +1,4 @@
-// Shared deck builder: theme, layouts and slide kinds of the DAGonStar in Practice decks.
+// Shared deck builder: theme, layouts and slide kinds of the Workflows in Practice with DAGonStar decks.
 // Each lecture file in ./lectures exports { n, part, title, subtitle, slides: [...] };
 // every entry of `slides` is { k: <kind>, ... } and is rendered by KINDS[k] below.
 // Code excerpts ("code") are read from the files in ../examples; recorded outputs ("out")
@@ -12,7 +12,9 @@ const FIXED_DATE = new Date("2026-11-02T00:00:00Z"); // the course's reference d
 
 const ROOT = path.join(__dirname, "..");
 const EXAMPLES = path.join(ROOT, "examples");
-const COURSE = "DAGonStar in Practice";
+const COURSE = "Workflows in Practice with DAGonStar";
+const SUBTITLE = "Orchestrating AI–HPC Workflows for Computational Science";
+const USE_CASE = "environmental computational science";
 const TEACHER = "Prof. Raffaele Montella, Ph.D.";
 const AFFILIATION = "University of Naples “Parthenope”";
 const SLIDES_PER_LECTURE = 30;
@@ -150,7 +152,7 @@ function build(lec) {
   pres.author = TEACHER;
   pres.company = COURSE;
   pres.title = `${COURSE} ${id} - ${lec.title}`;
-  pres.subject = `${COURSE}: ${PROGRAMME}, ${YEAR}. Released under ${LICENCE}.`;
+  pres.subject = `${COURSE}: ${SUBTITLE}. ${PROGRAMME}, use case ${USE_CASE}, ${YEAR}. Released under ${LICENCE}.`;
 
   const footer = `${COURSE}  ·  ${isAppendix ? "Appendix" : "Lecture"} ${id} ${lec.title}  ·  ${AUTHOR}  ·  ${LICENCE}`;
   const titleOpts = (color) => ({

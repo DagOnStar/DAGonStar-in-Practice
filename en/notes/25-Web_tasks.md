@@ -2,7 +2,7 @@
 
 *A declarative HTTP request as a task: method, URL, query, headers, expected status and outputs*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [25-DAGonStar-Web_tasks.pptx](../lectures/25-DAGonStar-Web_tasks.pptx). Examples: [examples/25-web-get](../../examples/25-web-get/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [25-DAGonStar-Web_tasks.pptx](../lectures/25-DAGonStar-Web_tasks.pptx). Examples: [examples/25-web-get](../../examples/25-web-get/).
 
 ## 2. Today's lecture
 

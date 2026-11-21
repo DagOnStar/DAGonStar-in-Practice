@@ -2,7 +2,7 @@
 
 *Posting workflow artifacts, credentials taken from the environment, and retries that end in a clear failure*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [26-DAGonStar-Uploads_authentication_and_failures.pptx](../lectures/26-DAGonStar-Uploads_authentication_and_failures.pptx). Examples: [examples/26-web-upload](../../examples/26-web-upload/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [26-DAGonStar-Uploads_authentication_and_failures.pptx](../lectures/26-DAGonStar-Uploads_authentication_and_failures.pptx). Examples: [examples/26-web-upload](../../examples/26-web-upload/).
 
 ## 2. Today's lecture
 

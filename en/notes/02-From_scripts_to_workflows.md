@@ -2,7 +2,7 @@
 
 *The station analysis written twice, as a bash script and as a DAG of tasks, with the same result*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [02-DAGonStar-From_scripts_to_workflows.pptx](../lectures/02-DAGonStar-From_scripts_to_workflows.pptx). Examples: [examples/02-script-vs-dag](../../examples/02-script-vs-dag/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [02-DAGonStar-From_scripts_to_workflows.pptx](../lectures/02-DAGonStar-From_scripts_to_workflows.pptx). Examples: [examples/02-script-vs-dag](../../examples/02-script-vs-dag/).
 
 ## 2. Today's lecture
 

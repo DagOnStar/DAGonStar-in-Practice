@@ -2,7 +2,7 @@
 
 *The DAGon service, JSON round trips, runner environments, platform helpers and packaged commands*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [47-DAGonStar-Operating_DAGonStar.pptx](../lectures/47-DAGonStar-Operating_DAGonStar.pptx). Examples: [examples/47-operations](../../examples/47-operations/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [47-DAGonStar-Operating_DAGonStar.pptx](../lectures/47-DAGonStar-Operating_DAGonStar.pptx). Examples: [examples/47-operations](../../examples/47-operations/).
 
 ## 2. Today's lecture
 

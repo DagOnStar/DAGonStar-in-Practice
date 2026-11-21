@@ -1,8 +1,9 @@
-# DAGonStar in Practice — Textbook (LaTeX source)
+# Workflows in Practice with DAGonStar — Textbook (LaTeX source)
 
-This folder contains the LaTeX source of the companion textbook of the 48-lecture course
-*DAGonStar in Practice: Orchestrating AI–HPC Workflows for Computational
-Environmental Science*, aligned with DAGonStar 3.0.0
+This folder contains the LaTeX source of *Workflows in Practice with DAGonStar:
+Orchestrating AI–HPC Workflows for Computational Science*, the companion textbook
+of the 48-lecture course. Its use case is environmental computational science,
+on the Gulf of Naples dataset. It is aligned with DAGonStar 3.0.0
 (https://github.com/DagOnStar/dagonstar), DAGonFS
 (https://github.com/DagOnStar/DAGonFS) and DAGonWeb
 (https://github.com/DagOnStar/DAGonWeb).
@@ -28,6 +29,13 @@ pdflatex main.tex
 pdflatex main.tex
 ```
 
+`latexmk` reads `.latexmkrc`, which names the output
+`Workflows_in_Practice_with_DAGonStar.pdf`. With plain `pdflatex`, pass
+`-jobname=Workflows_in_Practice_with_DAGonStar` to get the same name.
+
+The version of the book (`MAJOR.MINOR.PATCH`), its date and its history are in
+`front/version.tex`; see the repository README for how a version is released.
+
 (Three passes ensure the table of contents, list of figures, list of
 listings, and all `\Cref`/`\ref` cross-references are fully resolved.)
 
@@ -35,6 +43,8 @@ listings, and all `\Cref`/`\ref` cross-references are fully resolved.)
 
 ```
 main.tex                  Document class, preamble, packages, chapter includes
+front/version.tex         Version number, date and version history
+front/colophon.tex        Verso of the title page: version, use case, licence, history
 front/abstract.tex        Front-matter abstract
 front/preface.tex         Front-matter preface
 front/bibliography.tex    Back-matter bibliography & source provenance

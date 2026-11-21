@@ -2,7 +2,7 @@
 
 *Explicit edges with add_dependency_to, fan-out and fan-in, and the order DAGonStar guarantees*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [07-DAGonStar-Control_dependencies.pptx](../lectures/07-DAGonStar-Control_dependencies.pptx). Examples: [examples/07-dag](../../examples/07-dag/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [07-DAGonStar-Control_dependencies.pptx](../lectures/07-DAGonStar-Control_dependencies.pptx). Examples: [examples/07-dag](../../examples/07-dag/).
 
 ## 2. Today's lecture
 

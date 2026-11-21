@@ -2,7 +2,7 @@
 
 *Edge, fog, HPC and cloud in one DAG: IoT observation, native normalisation, agentic quality control and a FaaS archive*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [36-DAGonStar-One_graph_across_the_continuum.pptx](../lectures/36-DAGonStar-One_graph_across_the_continuum.pptx). Examples: [examples/36-continuum](../../examples/36-continuum/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [36-DAGonStar-One_graph_across_the_continuum.pptx](../lectures/36-DAGonStar-One_graph_across_the_continuum.pptx). Examples: [examples/36-continuum](../../examples/36-continuum/).
 
 ## 2. Today's lecture
 

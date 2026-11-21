@@ -2,7 +2,7 @@
 
 *Recording finished tasks in a checkpoint file and resuming a workflow without running them again*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [15-DAGonStar-Checkpointing.pptx](../lectures/15-DAGonStar-Checkpointing.pptx). Examples: [examples/15-checkpoint](../../examples/15-checkpoint/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [15-DAGonStar-Checkpointing.pptx](../lectures/15-DAGonStar-Checkpointing.pptx). Examples: [examples/15-checkpoint](../../examples/15-checkpoint/).
 
 ## 2. Today's lecture
 

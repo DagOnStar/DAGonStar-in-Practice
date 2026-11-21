@@ -2,7 +2,7 @@
 
 *Findable, accessible, interoperable and reusable runs: profiles, declared artifacts, RO-Crate and PROV, and no secrets in metadata*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [45-DAGonStar-FAIR_workflows.pptx](../lectures/45-DAGonStar-FAIR_workflows.pptx). Examples: [examples/45-fair](../../examples/45-fair/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [45-DAGonStar-FAIR_workflows.pptx](../lectures/45-DAGonStar-FAIR_workflows.pptx). Examples: [examples/45-fair](../../examples/45-fair/).
 
 ## 2. Today's lecture
 

@@ -2,7 +2,7 @@
 
 *Desired state, acknowledged actions, at-most-once delivery and outcomes that are never replayed automatically*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [32-DAGonStar-IoT_configuration_and_actuation.pptx](../lectures/32-DAGonStar-IoT_configuration_and_actuation.pptx). Examples: [examples/32-iot-actuate](../../examples/32-iot-actuate/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [32-DAGonStar-IoT_configuration_and_actuation.pptx](../lectures/32-DAGonStar-IoT_configuration_and_actuation.pptx). Examples: [examples/32-iot-actuate](../../examples/32-iot-actuate/).
 
 ## 2. Today's lecture
 

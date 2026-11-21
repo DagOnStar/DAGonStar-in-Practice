@@ -2,7 +2,7 @@
 
 *Every task type in one checkpointed, FAIR-recorded graph under portable emulation, with an accepted agentic step and a CWL export*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [48-DAGonStar-Capstone.pptx](../lectures/48-DAGonStar-Capstone.pptx). Examples: [examples/48-capstone](../../examples/48-capstone/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [48-DAGonStar-Capstone.pptx](../lectures/48-DAGonStar-Capstone.pptx). Examples: [examples/48-capstone](../../examples/48-capstone/).
 
 ## 2. Today's lecture
 

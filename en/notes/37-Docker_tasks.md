@@ -2,7 +2,7 @@
 
 *Running a task inside a container: images, the docker exec wrapper, volumes, remote daemons over SSH and testing without a daemon*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [37-DAGonStar-Docker_tasks.pptx](../lectures/37-DAGonStar-Docker_tasks.pptx). Examples: [examples/37-docker](../../examples/37-docker/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [37-DAGonStar-Docker_tasks.pptx](../lectures/37-DAGonStar-Docker_tasks.pptx). Examples: [examples/37-docker](../../examples/37-docker/).
 
 ## 2. Today's lecture
 

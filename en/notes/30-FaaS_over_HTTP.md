@@ -2,7 +2,7 @@
 
 *The same FaaS contract against a real HTTP function, provider registration, lazy SDKs and profiles*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [30-DAGonStar-FaaS_over_HTTP.pptx](../lectures/30-DAGonStar-FaaS_over_HTTP.pptx). Examples: [examples/30-faas-http](../../examples/30-faas-http/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [30-DAGonStar-FaaS_over_HTTP.pptx](../lectures/30-DAGonStar-FaaS_over_HTTP.pptx). Examples: [examples/30-faas-http](../../examples/30-faas-http/).
 
 ## 2. Today's lecture
 

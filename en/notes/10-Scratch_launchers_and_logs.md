@@ -2,7 +2,7 @@
 
 *Opening a task folder: the generated launcher, the context script, staged inputs, stdout and the logger*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [10-DAGonStar-Scratch_launchers_and_logs.pptx](../lectures/10-DAGonStar-Scratch_launchers_and_logs.pptx). Examples: [examples/10-scratch](../../examples/10-scratch/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [10-DAGonStar-Scratch_launchers_and_logs.pptx](../lectures/10-DAGonStar-Scratch_launchers_and_logs.pptx). Examples: [examples/10-scratch](../../examples/10-scratch/).
 
 ## 2. Today's lecture
 

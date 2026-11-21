@@ -3,7 +3,8 @@
 #   examples  every example runs, passes its own assertions and prints exactly its recorded output
 #   decks     every deck has 30 slides, builds without layout warnings, and the committed
 #             decks and notes are what the sources build (builds are byte-reproducible)
-#   textbook  the LaTeX textbook builds with no undefined references
+#   textbook  the LaTeX textbook builds with no undefined references, into
+#             Workflows_in_Practice_with_DAGonStar.pdf (the name is set in en/textbook/.latexmkrc)
 name: CI
 
 on:
@@ -97,10 +98,10 @@ jobs:
       - name: No undefined references
         working-directory: en/textbook
         run: |
-          if grep -E "(Reference|Citation).*undefined|There were undefined references" main.log; then
+          if grep -E "(Reference|Citation).*undefined|There were undefined references" Workflows_in_Practice_with_DAGonStar.log; then
             exit 1
           fi
       - uses: actions/upload-artifact@v4
         with:
           name: textbook
-          path: en/textbook/main.pdf
+          path: en/textbook/Workflows_in_Practice_with_DAGonStar.pdf

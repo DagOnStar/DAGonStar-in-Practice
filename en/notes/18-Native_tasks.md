@@ -2,7 +2,7 @@
 
 *Python functions as tasks: bindings instead of shell strings, declared outputs and JSON return values*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [18-DAGonStar-Native_tasks.pptx](../lectures/18-DAGonStar-Native_tasks.pptx). Examples: [examples/18-native](../../examples/18-native/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [18-DAGonStar-Native_tasks.pptx](../lectures/18-DAGonStar-Native_tasks.pptx). Examples: [examples/18-native](../../examples/18-native/).
 
 ## 2. Today's lecture
 

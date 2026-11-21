@@ -1,1 +1,1 @@
-"""Shared helpers of the DAGonStar in Practice examples."""
+"""Shared helpers of the Workflows in Practice with DAGonStar examples."""

@@ -2,7 +2,7 @@
 
 *How the stager chooses COPY, LINK, SCP, FTP or GridFTP, and how NORMAL, PARALLEL and SLURM modes run the transfers*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [44-DAGonStar-Data_movers.pptx](../lectures/44-DAGonStar-Data_movers.pptx). Examples: [examples/44-movers](../../examples/44-movers/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [44-DAGonStar-Data_movers.pptx](../lectures/44-DAGonStar-Data_movers.pptx). Examples: [examples/44-movers](../../examples/44-movers/).
 
 ## 2. Today's lecture
 

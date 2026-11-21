@@ -2,7 +2,7 @@
 
 *Fast BeeGFS-on-demand volumes for Slurm tasks: task and workflow scopes, persistence and validated configuration*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [42-DAGonStar-BeeOND_job_local_storage.pptx](../lectures/42-DAGonStar-BeeOND_job_local_storage.pptx). Examples: [examples/42-beeond](../../examples/42-beeond/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [42-DAGonStar-BeeOND_job_local_storage.pptx](../lectures/42-DAGonStar-BeeOND_job_local_storage.pptx). Examples: [examples/42-beeond](../../examples/42-beeond/).
 
 ## 2. Today's lecture
 

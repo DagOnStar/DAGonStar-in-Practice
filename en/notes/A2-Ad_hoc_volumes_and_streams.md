@@ -2,7 +2,7 @@
 
 *DAGonStar 3.0: one interface for DAGonFS, BeeOND, Hercules, CAPIO and DynoStore, volume tasks that share data through workflow://, and streams between running tasks*
 
-DAGonStar in Practice - Appendix. Slides: [A2-DAGonStar-Ad_hoc_volumes_and_streams.pptx](../lectures/A2-DAGonStar-Ad_hoc_volumes_and_streams.pptx). Examples: [examples/A2-volumes](../../examples/A2-volumes/).
+Workflows in Practice with DAGonStar - Appendix. Slides: [A2-DAGonStar-Ad_hoc_volumes_and_streams.pptx](../lectures/A2-DAGonStar-Ad_hoc_volumes_and_streams.pptx). Examples: [examples/A2-volumes](../../examples/A2-volumes/).
 
 ## 2. Today's lecture
 

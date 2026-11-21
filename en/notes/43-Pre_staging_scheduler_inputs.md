@@ -2,7 +2,7 @@
 
 *Moving inputs before sbatch: no allocated cores wait for transfers, verified inputs, and no job when staging fails*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [43-DAGonStar-Pre_staging_scheduler_inputs.pptx](../lectures/43-DAGonStar-Pre_staging_scheduler_inputs.pptx). Examples: [examples/43-prestage](../../examples/43-prestage/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [43-DAGonStar-Pre_staging_scheduler_inputs.pptx](../lectures/43-DAGonStar-Pre_staging_scheduler_inputs.pptx). Examples: [examples/43-prestage](../../examples/43-prestage/).
 
 ## 2. Today's lecture
 

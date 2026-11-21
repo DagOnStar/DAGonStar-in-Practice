@@ -2,7 +2,7 @@
 
 *Invoking already-deployed cloud functions: the FaaS contract, a CloudEvents envelope, file descriptors and exactly-once results*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [29-DAGonStar-FaaS_tasks.pptx](../lectures/29-DAGonStar-FaaS_tasks.pptx). Examples: [examples/29-faas](../../examples/29-faas/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [29-DAGonStar-FaaS_tasks.pptx](../lectures/29-DAGonStar-FaaS_tasks.pptx). Examples: [examples/29-faas](../../examples/29-faas/).
 
 ## 2. Today's lecture
 

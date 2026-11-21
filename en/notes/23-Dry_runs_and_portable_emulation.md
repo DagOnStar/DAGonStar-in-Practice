@@ -2,7 +2,7 @@
 
 *Planning a workflow without executing it, and running cluster task types on a laptop*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [23-DAGonStar-Dry_runs_and_portable_emulation.pptx](../lectures/23-DAGonStar-Dry_runs_and_portable_emulation.pptx). Examples: [examples/23-dry-portable](../../examples/23-dry-portable/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [23-DAGonStar-Dry_runs_and_portable_emulation.pptx](../lectures/23-DAGonStar-Dry_runs_and_portable_emulation.pptx). Examples: [examples/23-dry-portable](../../examples/23-dry-portable/).
 
 ## 2. Today's lecture
 

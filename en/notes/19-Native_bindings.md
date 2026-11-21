@@ -2,7 +2,7 @@
 
 *Scalar inputs, environment variables, a function that raises, and bindings rejected before the run*
 
-DAGonStar in Practice - Part 2: Execution, data and recovery. Slides: [19-DAGonStar-Native_bindings.pptx](../lectures/19-DAGonStar-Native_bindings.pptx). Examples: [examples/19-native-bindings](../../examples/19-native-bindings/).
+Workflows in Practice with DAGonStar - Part 2: Execution, data and recovery. Slides: [19-DAGonStar-Native_bindings.pptx](../lectures/19-DAGonStar-Native_bindings.pptx). Examples: [examples/19-native-bindings](../../examples/19-native-bindings/).
 
 ## 2. Today's lecture
 

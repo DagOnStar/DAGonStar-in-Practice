@@ -2,7 +2,7 @@
 
 *Containers on HPC without a daemon: SIF images, overlays, bind mounts and staging*
 
-DAGonStar in Practice - Part 4: Infrastructure, FAIR and applications. Slides: [38-DAGonStar-Apptainer_tasks.pptx](../lectures/38-DAGonStar-Apptainer_tasks.pptx). Examples: [examples/38-apptainer](../../examples/38-apptainer/).
+Workflows in Practice with DAGonStar - Part 4: Infrastructure, FAIR and applications. Slides: [38-DAGonStar-Apptainer_tasks.pptx](../lectures/38-DAGonStar-Apptainer_tasks.pptx). Examples: [examples/38-apptainer](../../examples/38-apptainer/).
 
 ## 2. Today's lecture
 

@@ -2,7 +2,7 @@
 
 *Result fit, mandatory gates and thresholds; publication only when accepted; reuse only when contract, profile and inputs are unchanged*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [35-DAGonStar-Agentic_evaluation_and_checkpoints.pptx](../lectures/35-DAGonStar-Agentic_evaluation_and_checkpoints.pptx). Examples: [examples/35-agentic-evaluation](../../examples/35-agentic-evaluation/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [35-DAGonStar-Agentic_evaluation_and_checkpoints.pptx](../lectures/35-DAGonStar-Agentic_evaluation_and_checkpoints.pptx). Examples: [examples/35-agentic-evaluation](../../examples/35-agentic-evaluation/).
 
 ## 2. Today's lecture
 

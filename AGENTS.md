@@ -55,7 +55,7 @@ Never edit generated files: change their source and rebuild.
 ```bash
 python tools/run_examples.py --strict        # 54 examples, 0 failed, 0 different
 cd src && node count.js && node build.js && node notes.js
-cd en/textbook && latexmk -pdf main.tex     # no undefined references
+cd en/textbook && latexmk -pdf main.tex     # no undefined references; writes Workflows_in_Practice_with_DAGonStar.pdf
 ```
 
 `node build.js` exits with status 1 on any layout warning (code too long for its box, text that
@@ -66,6 +66,10 @@ decks to PDF with PowerPoint itself; look at new or changed slides there before 
 
 The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push and pull request;
 a pushed `v*` tag publishes a release (`.github/workflows/release.yml`). Keep both green.
+
+The textbook is versioned in `en/textbook/front/version.tex` (`MAJOR.MINOR.PATCH`: new edition,
+new material, correction). A change to the book that will be released bumps `\bookversion` and
+`\bookdate` and adds a row to `\bookhistory`; the release tag must be `v` plus that version.
 
 ## 5. Style
 

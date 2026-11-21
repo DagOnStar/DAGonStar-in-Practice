@@ -2,7 +2,7 @@
 
 *Bounded observations from devices: targets, resources, completion modes, provenance and output-checked checkpoints*
 
-DAGonStar in Practice - Part 3: Task models for AI–HPC. Slides: [31-DAGonStar-IoT_observation_tasks.pptx](../lectures/31-DAGonStar-IoT_observation_tasks.pptx). Examples: [examples/31-iot-observe](../../examples/31-iot-observe/).
+Workflows in Practice with DAGonStar - Part 3: Task models for AI–HPC. Slides: [31-DAGonStar-IoT_observation_tasks.pptx](../lectures/31-DAGonStar-IoT_observation_tasks.pptx). Examples: [examples/31-iot-observe](../../examples/31-iot-observe/).
 
 ## 2. Today's lecture
 

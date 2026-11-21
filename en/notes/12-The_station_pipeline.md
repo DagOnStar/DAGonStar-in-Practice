@@ -2,7 +2,7 @@
 
 *Part 1 put together: fetch, three station summaries and a sorted report, validated, observed and exported*
 
-DAGonStar in Practice - Part 1: Foundations of scientific workflows. Slides: [12-DAGonStar-The_station_pipeline.pptx](../lectures/12-DAGonStar-The_station_pipeline.pptx). Examples: [examples/12-station-pipeline](../../examples/12-station-pipeline/).
+Workflows in Practice with DAGonStar - Part 1: Foundations of scientific workflows. Slides: [12-DAGonStar-The_station_pipeline.pptx](../lectures/12-DAGonStar-The_station_pipeline.pptx). Examples: [examples/12-station-pipeline](../../examples/12-station-pipeline/).
 
 ## 2. Today's lecture
 
