@@ -1,4 +1,4 @@
-# Continuous integration: the checks of AGENTS.md section 4, on every push and pull request.
+# Continuous integration: the checks of AGENTS.md section 5, on every push and pull request.
 #
 #   examples  every example runs, passes its own assertions and prints exactly its recorded output
 #   decks     every deck has 30 slides, builds without layout warnings, and the committed
