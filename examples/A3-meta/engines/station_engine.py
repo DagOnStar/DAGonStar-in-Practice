@@ -11,11 +11,15 @@ import json
 import os
 import sys
 
-parameters = json.load(open(sys.argv[1], encoding="utf-8"))
-rows = list(csv.DictReader(open(parameters["observations"], encoding="utf-8")))
+with open(sys.argv[1], encoding="utf-8") as f:
+    parameters = json.load(f)
+with open(parameters["observations"], encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
 os.makedirs("results", exist_ok=True)
-with open(os.path.join("results", "means.csv"), "w", encoding="utf-8") as out:
+with open("results/means.csv", "w", encoding="utf-8") as out:
     out.write("station,mean_c\n")
     for station in parameters["stations"]:
-        values = [float(r["temperature_c"]) for r in rows if r["station"] == station]
-        out.write("%s,%.2f\n" % (station, sum(values) / len(values)))
+        values = [float(r["temperature_c"])
+                  for r in rows if r["station"] == station]
+        mean = sum(values) / len(values)
+        out.write("%s,%.2f\n" % (station, mean))

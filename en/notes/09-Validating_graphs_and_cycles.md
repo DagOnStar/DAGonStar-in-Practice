@@ -240,9 +240,7 @@ flowchart LR
 
 Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependencies.
 
-- Each cycle has its own tasks
-- forecast_1 feeds simulate_2
-- Still acyclic: time only moves forward
+> **Still acyclic** each cycle has its own tasks and forecast_1 feeds simulate_2: time only moves forward.
 
 ## 20. Unrolling in Python
 

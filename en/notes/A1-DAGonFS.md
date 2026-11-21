@@ -275,9 +275,7 @@ flowchart LR
 
 Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependencies.
 
-- All folders on the mount
-- Stage-out to durable storage
-- Volume unmounted after
+> **All folders on the mount** report.txt is staged out to durable storage before the volume is unmounted.
 
 ## 22. Integration rules
 

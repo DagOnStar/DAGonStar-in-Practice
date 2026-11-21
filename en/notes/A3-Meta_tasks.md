@@ -90,10 +90,13 @@ DAGonStar in Practice - Appendix. Slides: [A3-DAGonStar-Meta_tasks.pptx](../lect
 [`examples/A3-meta/meta_task.py`](../../examples/A3-meta/meta_task.py)
 
 ```python
-TaskType.META, "means", engine="command", workflow=str(ENGINES / "station_engine.py"),
+TaskType.META, "means", engine="command",
+workflow=str(ENGINES / "station_engine.py"),
 inputs={"observations": OBS, "stations": ["NAP", "CAP", "ISC"]},
-outputs={"means": {"path": "means.csv", "source": "results/means.csv"}},
-engine_options={"command": [sys.executable, "{workflow}", "{parameters_file}"]}))
+outputs={"means": {"path": "means.csv",
+                   "source": "results/means.csv"}},
+engine_options={"command": [sys.executable, "{workflow}",
+                            "{parameters_file}"]}))
 ```
 
 - The observations are a staged file; the stations a plain JSON value
@@ -104,14 +107,18 @@ engine_options={"command": [sys.executable, "{workflow}", "{parameters_file}"]})
 [`examples/A3-meta/engines/station_engine.py`](../../examples/A3-meta/engines/station_engine.py)
 
 ```python
-parameters = json.load(open(sys.argv[1], encoding="utf-8"))
-rows = list(csv.DictReader(open(parameters["observations"], encoding="utf-8")))
+with open(sys.argv[1], encoding="utf-8") as f:
+    parameters = json.load(f)
+with open(parameters["observations"], encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
 os.makedirs("results", exist_ok=True)
-with open(os.path.join("results", "means.csv"), "w", encoding="utf-8") as out:
+with open("results/means.csv", "w", encoding="utf-8") as out:
     out.write("station,mean_c\n")
     for station in parameters["stations"]:
-        values = [float(r["temperature_c"]) for r in rows if r["station"] == station]
-        out.write("%s,%.2f\n" % (station, sum(values) / len(values)))
+        values = [float(r["temperature_c"])
+                  for r in rows if r["station"] == station]
+        mean = sum(values) / len(values)
+        out.write("%s,%.2f\n" % (station, mean))
 ```
 
 - It knows nothing about DAGonStar: it reads a JSON document and writes a CSV
@@ -168,9 +175,11 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 ```python
 if shutil.which("cwltool"):
     wf.add_task(DagonTask(
-        TaskType.META, "records", engine="cwl", workflow=str(ENGINES / "count_records.cwl"),
+        TaskType.META, "records", engine="cwl",
+        workflow=str(ENGINES / "count_records.cwl"),
         inputs={"observations": OBS},
-        outputs={"records": {"path": "records.txt", "engine_output": "records"}}))
+        outputs={"records": {"path": "records.txt",
+                             "engine_output": "records"}}))
 ```
 
 - engine_output takes the file from the CWL output object cwltool prints
@@ -203,13 +212,18 @@ outputs:
 Recorded output of `python examples/A3-meta/meta_task.py`:
 
 ```text
-engine: command | outputs: ['outputs/means.csv']
-means.csv: station,mean_c | NAP,15.50 | CAP,16.75 | ISC,15.75
+engine: command
+outputs: ['outputs/means.csv']
+means.csv:
+  station,mean_c
+  NAP,15.50
+  CAP,16.75
+  ISC,15.75
 warmest: CAP,16.75
 cwltool counted 12 records
-second run reused the meta-task: True
-refused at construction: MetaValidationError
-emulated: True | placeholder for engine: nextflow
+second run reused means: True
+refused: MetaValidationError
+emulated: True | placeholder for: nextflow
 ```
 
 - Collected means.csv
@@ -237,7 +251,7 @@ emulated: True | placeholder for engine: nextflow
 
 ```
 second run reused
-  the meta-task: True
+  means: True
 ```
 
 ## 21. Reuse and refusal
@@ -248,14 +262,16 @@ second run reused
 second = build(base, checkpoint)
 second.run(checkpoint)
 reused = second.find_task_by_name("Meta", "means")
-print("second run reused the meta-task:", bool(reused.fair_checkpoint_reused))
-check(reused.fair_checkpoint_reused and reused.working_dir == means.working_dir, "verified reuse")
+print("second run reused means:", bool(reused.fair_checkpoint_reused))
+check(reused.fair_checkpoint_reused
+      and reused.working_dir == means.working_dir, "verified reuse")
 
 try:
-    DagonTask(TaskType.META, "leaky", engine="nextflow", workflow="nextflow-io/hello",
+    DagonTask(TaskType.META, "leaky", engine="nextflow",
+              workflow="nextflow-io/hello",
               engine_options={"api_token": "secret"})
 except MetaValidationError as error:
-    print("refused at construction:", type(error).__name__)
+    print("refused:", type(error).__name__)
 ```
 
 - The same checkpoint file: the same working directory is reused
@@ -278,14 +294,18 @@ except MetaValidationError as error:
 [`examples/A3-meta/meta_task.py`](../../examples/A3-meta/meta_task.py)
 
 ```python
-emulated = workflow("MetaEmulated", base / "emulated", portable_emulation=True)
-emulated.add_task(DagonTask(TaskType.BATCH, "fetch", fetch_observations()))
-emulated.add_task(DagonTask(TaskType.META, "ocean", engine="nextflow", workflow="nextflow-io/hello",
-                            inputs={"observations": OBS}, outputs={"summary": "results/summary.json"}))
+emulated = workflow("MetaEmulated", base / "emulated",
+                    portable_emulation=True)
+emulated.add_task(DagonTask(TaskType.BATCH, "fetch",
+                            fetch_observations()))
+emulated.add_task(DagonTask(
+    TaskType.META, "ocean", engine="nextflow",
+    workflow="nextflow-io/hello", inputs={"observations": OBS},
+    outputs={"summary": "results/summary.json"}))
 emulated.run()
 ocean = emulated.find_task_by_name("MetaEmulated", "ocean")
-placeholder = json.loads(text(ocean, "outputs/results/summary.json"))
-print("emulated:", ocean.meta_result["emulated"], "| placeholder for engine:", placeholder["engine"])
+summary = json.loads(text(ocean, "outputs/results/summary.json"))
+print("emulated:", ocean.meta_result["emulated"],
 ```
 
 - The mock adapter writes one JSON placeholder per declared output

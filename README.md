@@ -78,7 +78,7 @@ an HPC scheduler helps in Part IV, but every example also runs on a laptop.
 | [`en/notes/`](en/notes/) | the notes of each lecture, slide by slide, in Markdown |
 | [`en/textbook/`](en/textbook/) | the companion textbook in LaTeX: four parts that follow the lectures, appendices A-H (E DAGonFS, F ad-hoc volumes, G meta-tasks, H DAGonWeb); every course example and its recorded output are included from `examples/`; `main.pdf` is the latest build |
 | [`examples/`](examples/) | one folder per lecture, each with a `README.md`, the scripts and their recorded output in `output/`; `common/` holds the shared helpers and `data/` the Gulf of Naples dataset |
-| [`tools/`](tools/) | `run_examples.py`, which runs every example and compares it with its recorded output |
+| [`tools/`](tools/) | `run_examples.py`, which runs every example and compares it with its recorded output; `export_decks_powerpoint.sh`, which exports decks to PDF with PowerPoint (macOS) |
 | [`src/`](src/) | the generator of the decks and the notes |
 | [`AGENTS.md`](AGENTS.md) | the rules for changing the material |
 
@@ -116,6 +116,9 @@ node count.js                  # every deck has exactly 30 slides
 node build.js                  # decks -> en/lectures (`node build.js 7 12 A4` for some)
 node notes.js                  # notes -> en/notes
 ```
+
+On macOS, `tools/export_decks_powerpoint.sh A2 A4` exports decks to PDF with Microsoft PowerPoint,
+to see how the slides really render.
 
 ```bash
 cd en/textbook && latexmk -pdf main.tex

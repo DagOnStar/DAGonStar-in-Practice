@@ -109,9 +109,7 @@ flowchart LR
 
 Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependencies.
 
-- Files are the interface
-- The edge exists because of the file
-- CAP 16.75 is the expected result
+> **Files are the interface** the edge exists because of the file; CAP 16.75 is the expected result.
 
 ## 11. Staging and rewriting
 

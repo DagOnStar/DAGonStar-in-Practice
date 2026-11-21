@@ -76,19 +76,20 @@ DAGonStar in Practice - Appendix. Slides: [A2-DAGonStar-Ad_hoc_volumes_and_strea
 
 ```python
 class LocalDirectory(AdHocFileSystem):
-    """A directory created when the resource starts and removed when it stops."""
+    """A directory made at start and removed at stop."""
 
     provider = "local-directory"
-    access = "posix"                 # tasks open its paths with ordinary file calls
-    supports_streaming = True        # so the provider-neutral stream store works on it
+    access = "posix"           # ordinary file calls reach the data
+    supports_streaming = True  # the provider-neutral stream store works
 
     def __init__(self, workflow, name="default", path=None):
         super().__init__(workflow, name)
-        self.path = path or os.path.join(workflow.get_scratch_dir_base(), ".volume-" + name)
+        base = workflow.get_scratch_dir_base()
+        self.path = path or os.path.join(base, ".volume-" + name)
 
     @property
     def task_path(self):
-        return self.path             # becomes $DAGON_ADHOC_<NAME>_PATH in bound tasks
+        return self.path  # $DAGON_ADHOC_<NAME>_PATH in bound tasks
 ```
 
 - provider, access and supports_streaming declare what tasks may do
@@ -124,8 +125,9 @@ def stop(self):
 [`examples/A2-volumes/local_directory.py`](../../examples/A2-volumes/local_directory.py)
 
 ```python
-mean.add_dependency_to(fetch)                  # no workflow:// reference: say the order
-shared = wf.create_adhoc_filesystem("local-directory", name="gulf", export="GULF")
+mean.add_dependency_to(fetch)  # no workflow:// reference here
+shared = wf.create_adhoc_filesystem("local-directory",
+                                    name="gulf", export="GULF")
 shared.bind(fetch)
 shared.bind(mean)
 private = mean.create_adhoc_filesystem("local-directory", name="tmp")
@@ -177,14 +179,19 @@ workflow:///Gulf/gulf/
 [`examples/A2-volumes/volume_task.py`](../../examples/A2-volumes/volume_task.py)
 
 ```python
-gulf = DagonTask(TaskType.VOLUME, "Gulf", provider=provider, volume="gulf",
-                 stage_in={"inputs/observations.csv": "workflow:///fetch/outputs/observations.csv",
-                           "means": {"path": "workflow:///fetch/means", "type": "directory"}})
-tasks = [fetch, gulf] + [DagonTask(TaskType.BATCH, "mean_" + s, MEAN.format(s=s)) for s in STATIONS]
-tasks += [DagonTask(TaskType.BATCH, "split", SPLIT), DagonTask(TaskType.BATCH, "count", COUNT)]
+gulf = DagonTask(
+    TaskType.VOLUME, "Gulf", provider=provider, volume="gulf",
+    stage_in={"inputs/observations.csv": FETCHED,
+              "means": {"path": "workflow:///fetch/means",
+                        "type": "directory"}})
+means = [batch("mean_" + s, MEAN.format(s=s)) for s in STATIONS]
+tasks = [fetch, gulf, *means,
+         batch("split", SPLIT), batch("count", COUNT)]
 if destroy:
-    tasks.append(DagonTask(TaskType.VOLUME, "Collect", action="destroy", volume=VOLUME,
-                           stage_out={"means": {"path": VOLUME + "/means", "type": "directory"}}))
+    tasks.append(DagonTask(
+        TaskType.VOLUME, "Collect", action="destroy", volume=VOLUME,
+        stage_out={"means": {"path": VOLUME + "/means",
+                             "type": "directory"}}))
     source = "workflow:///Collect/means"
 ```
 
@@ -197,7 +204,7 @@ if destroy:
 flowchart LR
   f["fetch"]
   g["Gulf (volume)"]
-  m["means ×3"]
+  m["mean ×3"]
   s["split"]
   c["count"]
   d["Collect (volume)"]
@@ -213,9 +220,7 @@ flowchart LR
 
 Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependencies.
 
-- Means written into the volume
-- count streams from split
-- Collect after every user
+> **The means are written into the volume** count streams from split; Collect waits for every user, then report reads its copies.
 
 ## 17. Streams
 
@@ -226,11 +231,15 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 [`examples/A2-volumes/volume_task.py`](../../examples/A2-volumes/volume_task.py)
 
 ```python
-SPLIT = ("for s in NAP CAP ISC; do grep ^$s " + VOLUME + "/inputs/observations.csv > $s.csv; "
-         '"$DAGON_PYTHON" -m dagon.adhoc stream publish "$DAGON_STREAM_OUT" $s.csv; done')
-COUNT = ('n=0; for item in $("$DAGON_PYTHON" -m dagon.adhoc stream items '
-         "workflow:///split/stations?stream=gulf --into got); do "
-         'n=$((n + $(wc -l < "$item"))); done; echo $n > records.txt')
+SPLIT = ("for s in NAP CAP ISC; do "
+         "grep ^$s " + OBS + " > $s.csv; "
+         '"$DAGON_PYTHON" -m dagon.adhoc stream publish '
+         '"$DAGON_STREAM_OUT" $s.csv; done')
+COUNT = ('n=0; for item in $("$DAGON_PYTHON" -m dagon.adhoc '
+         "stream items workflow:///split/stations?stream=gulf "
+         "--into got); do "
+         'n=$((n + $(wc -l < "$item"))); done; '
+         "echo $n > records.txt")
 ```
 
 - split publishes one file per station to $DAGON_STREAM_OUT
@@ -252,12 +261,12 @@ Recorded output of `python examples/A2-volumes/volume_task.py`:
 
 ```text
 Gulf after: ['fetch']
-Collect after: ['Gulf', 'count', 'mean_CAP', 'mean_ISC', 'mean_NAP', 'split']
-bound to gulf: ['Collect', 'Gulf', 'count', 'mean_CAP', 'mean_ISC', 'mean_NAP', 'split']
+Collect after:
+   Gulf count mean_CAP mean_ISC mean_NAP split
 report: NAP 15.50 | CAP 16.75 | ISC 15.75
-count read 12 records while split ran; streams from: ['split']
+count read 12 records from ['split']
 volume gulf: destroyed by Collect
-emulated dagonfs report: NAP 15.50 | CAP 16.75 | ISC 15.75
+emulated: NAP 15.50 | CAP 16.75 | ISC 15.75
 volume gulf: no task refers to it
 ```
 

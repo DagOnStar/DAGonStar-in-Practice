@@ -95,12 +95,15 @@ Workflow(...,
 
 ```python
 def task(name, script, inputs=None, explicit=(), x=0, y=0):
-    """One task as DAGonWeb stores it: the runtime command, plus the editor's own state."""
+    """One task as DAGonWeb stores it: command plus editor state."""
     inputs = inputs or {}
-    assignments = "".join("%s=%s ;\n" % item for item in inputs.items())
-    return {"name": name, "type": "batch", "command": assignments + script,
+    assign = "".join("%s=%s ;\n" % item for item in inputs.items())
+    return {"name": name, "type": "batch",
+            "command": assign + script,
             "explicit_prevs": list(explicit), "prevs": [], "nexts": [],
-            "dagonweb": {"x": x, "y": y, "config": {"command": script, "inputs": inputs}}}
+            "dagonweb": {"x": x, "y": y,
+                         "config": {"command": script,
+                                    "inputs": inputs}}}
 ```
 
 - Named inputs are prepended to the command as shell assignments
@@ -111,14 +114,10 @@ def task(name, script, inputs=None, explicit=(), x=0, y=0):
 Recorded output of `python examples/A4-dagonweb/dagonweb_document.py`:
 
 ```text
-document keys: ['dagonweb', 'host', 'id', 'name', 'tasks'] | mean_CAP command:
+mean_CAP command (awk program elided):
   obs=workflow:///fetch/outputs/observations.csv ;
-  awk -F, -v s=CAP '$1==s{t+=$3;n++}END{printf "%s %.2f\n", s, t/n}' $obs > CAP.txt
+  awk -F, -v s=CAP '...' $obs > CAP.txt
 ```
-
-- obs holds the reference
-- DAGonStar stages the file and rewrites it
-- The script uses $obs
 
 ## 12. Two kinds of link
 
@@ -158,9 +157,10 @@ document keys: ['dagonweb', 'host', 'id', 'name', 'tasks'] | mean_CAP command:
 def run(doc, base, checkpoint, resume=False):
     """What DAGonWeb's executor does with a saved document."""
     runtime = doc["dagonweb"]["runtime"]
-    wf = Workflow(doc["name"], config=config(base), max_threads=runtime["max_threads"],
-                  portable_emulation=runtime["portable_emulation"], checkpoint_file=checkpoint,
-                  jsonload=doc)
+    wf = Workflow(doc["name"], config=config(base),
+                  max_threads=runtime["max_threads"],
+                  portable_emulation=runtime["portable_emulation"],
+                  checkpoint_file=checkpoint, jsonload=doc)
     wf.make_dependencies()
     wf.run(resume_checkpoint_file=checkpoint if resume else None)
     return wf, {t.name: t for t in wf.tasks}
@@ -174,7 +174,7 @@ def run(doc, base, checkpoint, resume=False):
 ```mermaid
 flowchart LR
   f["fetch"]
-  m["mean_NAP, _CAP, _ISC"]
+  m["mean ×3"]
   r["report"]
   n["notify"]
   f --> m
@@ -193,13 +193,13 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 Recorded output of `python examples/A4-dagonweb/dagonweb_document.py`:
 
 ```text
-data edges into report: ['mean_CAP', 'mean_ISC', 'mean_NAP']
-notify runs after: ['report'] (explicit, no data)
-run 1: {'fetch': 'FINISHED', 'mean_NAP': 'FINISHED', 'mean_CAP': 'FINISHED', 'mean_ISC': 'FINISHED', 'report': 'FAILED', 'notify': 'FAILED'}
-run 2: {'fetch': 'FINISHED', 'mean_NAP': 'FINISHED', 'mean_CAP': 'FINISHED', 'mean_ISC': 'FINISHED', 'report': 'FINISHED', 'notify': 'FINISHED'}
-reused from run 1: ['fetch', 'mean_CAP', 'mean_ISC', 'mean_NAP']
+report after: mean_CAP mean_ISC mean_NAP
+notify after: report (explicit)
+run 1 failed: ['report', 'notify']
+run 2 failed: []
+reused: fetch mean_CAP mean_ISC mean_NAP
 report: NAP 15.50 | CAP 16.75 | ISC 15.75
-as_json keeps the explicit edge: ['report']
+as_json explicit_prevs: ['report']
 ```
 
 - Three data edges, one explicit
@@ -220,9 +220,9 @@ as_json keeps the explicit edge: ['report']
 > Only report and notify ran again.
 
 ```
-reused from run 1:
- ['fetch', 'mean_CAP',
-  'mean_ISC', 'mean_NAP']
+reused: fetch
+  mean_CAP mean_ISC
+  mean_NAP
 ```
 
 ## 19. In the browser

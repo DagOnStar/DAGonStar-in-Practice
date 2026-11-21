@@ -7,6 +7,8 @@ const fs = require("fs");
 const path = require("path");
 const PptxGenJS = require("pptxgenjs");
 const JSZip = require("jszip");
+const crypto = require("crypto");
+const FIXED_DATE = new Date("2026-11-02T00:00:00Z"); // the course's reference day
 
 const ROOT = path.join(__dirname, "..");
 const EXAMPLES = path.join(ROOT, "examples");
@@ -482,7 +484,11 @@ function build(lec) {
       for (const { x, y, nd } of Object.values(pos)) {
         const [, label, , type] = nd;
         const colour = TYPE_COLOURS[type || "batch"] || TYPE_COLOURS.batch;
-        const pt = fitText(label, bw - 0.1, bh - 0.04, 12, 9, where());
+        // PowerPoint breaks a word that is wider than the box: size the longest word to fit.
+        const longest = Math.max(...String(label).split(/\s+/).map((w) => w.length));
+        const wordPt = Math.floor(((bw - 0.1) * 72) / (longest * MONO_W));
+        if (wordPt < 9) warnings.push(`${where()}: node label word too long for its box: ${label}`);
+        const pt = Math.min(fitText(label, bw - 0.1, bh - 0.04, 12, 9, where()), Math.max(wordPt, 9));
         s.addText(label, { x, y, w: bw, h: bh, shape: pres.ShapeType.roundRect, rectRadius: 0.08, fill: { color: type === "data" ? "FFFFFF" : colour },
           line: { color: colour, width: 1.25 }, fontFace: MONO, fontSize: pt, bold: true, color: type === "data" ? colour : "FFFFFF", align: "center", valign: "middle", margin: 2, objectName: "Node" });
       }
@@ -568,12 +574,23 @@ async function applyTheme(file, T) {
   }
   xml = xml.replace(/<a:theme ([^>]*)name="[^"]*"/, `<a:theme $1name="${T.name}"`);
   zip.file(p, xml);
+  // Reproducible decks: a rebuild of an unchanged source gives the same bytes, so only decks
+  // whose content changed show up in git. pptxgenjs writes the build time and random section ids.
+  const core = "docProps/core.xml";
+  zip.file(core, (await zip.file(core).async("string"))
+    .replace(/(<dcterms:(created|modified)[^>]*>)[^<]*/g, `$1${FIXED_DATE.toISOString().replace(/\.\d+Z$/, "Z")}`));
+  const presentation = "ppt/presentation.xml";
+  let n = 0;
+  zip.file(presentation, (await zip.file(presentation).async("string")).replace(/(<p14:section [^>]*id=")\{[^}]*\}/g, (_, head) => {
+    const h = crypto.createHash("sha1").update(`${file}#${n++}`.replace(/^.*[\\/]/, "")).digest("hex");
+    return `${head}{${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}}`;
+  }));
   // Repack for PowerPoint and cloud viewers: [Content_Types].xml first, no folder entries
   // (OneDrive, SharePoint and PowerPoint Online can refuse packages that contain them).
   const out = new JSZip();
   const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
   names.sort((a, b) => (a === "[Content_Types].xml" ? -1 : b === "[Content_Types].xml" ? 1 : 0));
-  for (const n of names) out.file(n, await zip.file(n).async("nodebuffer"), { createFolders: false });
+  for (const n of names) out.file(n, await zip.file(n).async("nodebuffer"), { createFolders: false, date: FIXED_DATE });
   fs.writeFileSync(file, await out.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
 }
 

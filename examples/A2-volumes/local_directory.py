@@ -19,19 +19,20 @@ from dagon.adhoc import AdHocFileSystem, register_provider
 
 
 class LocalDirectory(AdHocFileSystem):
-    """A directory created when the resource starts and removed when it stops."""
+    """A directory made at start and removed at stop."""
 
     provider = "local-directory"
-    access = "posix"                 # tasks open its paths with ordinary file calls
-    supports_streaming = True        # so the provider-neutral stream store works on it
+    access = "posix"           # ordinary file calls reach the data
+    supports_streaming = True  # the provider-neutral stream store works
 
     def __init__(self, workflow, name="default", path=None):
         super().__init__(workflow, name)
-        self.path = path or os.path.join(workflow.get_scratch_dir_base(), ".volume-" + name)
+        base = workflow.get_scratch_dir_base()
+        self.path = path or os.path.join(base, ".volume-" + name)
 
     @property
     def task_path(self):
-        return self.path             # becomes $DAGON_ADHOC_<NAME>_PATH in bound tasks
+        return self.path  # $DAGON_ADHOC_<NAME>_PATH in bound tasks
 
     def start(self):
         if self.started or self.workflow.portable_emulation:
@@ -66,8 +67,9 @@ def main():
                          '"$DAGON_ADHOC_TMP_PATH/cap.csv" > CAP.txt && echo "$DAGON_ADHOC_NAMES" > names.txt')
         wf.add_task(fetch)
         wf.add_task(mean)
-        mean.add_dependency_to(fetch)                  # no workflow:// reference: say the order
-        shared = wf.create_adhoc_filesystem("local-directory", name="gulf", export="GULF")
+        mean.add_dependency_to(fetch)  # no workflow:// reference here
+        shared = wf.create_adhoc_filesystem("local-directory",
+                                            name="gulf", export="GULF")
         shared.bind(fetch)
         shared.bind(mean)
         private = mean.create_adhoc_filesystem("local-directory", name="tmp")

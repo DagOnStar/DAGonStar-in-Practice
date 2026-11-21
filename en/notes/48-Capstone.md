@@ -45,7 +45,7 @@ flowchart LR
   f["fetch"]
   t["table"]
   b["batch...nomad"]
-  l["bulletin, publish, archive, buoy"]
+  l["bulletin...buoy"]
   m["ocean, gulf (meta)"]
   q["qc (agentic)"]
   n["count (native)"]

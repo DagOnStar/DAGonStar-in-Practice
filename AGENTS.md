@@ -58,7 +58,10 @@ cd en/textbook && latexmk -pdf main.tex     # no undefined references
 ```
 
 `node build.js` exits with status 1 on any layout warning (code too long for its box, text that
-overflows); fix the warning, do not ignore it.
+overflows, a graph label that PowerPoint would break mid-word); fix the warning, do not ignore it.
+Builds are reproducible: rebuilding an unchanged source gives the same `.pptx` bytes, so commit
+every deck that git shows as changed. On macOS, `tools/export_decks_powerpoint.sh A2 A4` exports
+decks to PDF with PowerPoint itself; look at new or changed slides there before committing.
 
 ## 5. Style
 
