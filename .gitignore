@@ -330,10 +330,14 @@ TSWLatexianTemp*
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
 
-## DAGonStar in Practice
+## Workflows in Practice with DAGonStar
 src/node_modules/
 __pycache__/
 *.pyc
 .venv/
 .DS_Store
 *.fdb_latexmk
+
+## Videos (published as release assets, not in git)
+*.mp4
+media/build/
