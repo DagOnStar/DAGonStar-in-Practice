@@ -32,4 +32,4 @@ with serve(StationService) as url, scratch("25") as base:
     print("status:", meta["status_code"], "| type:", meta["content_type"],
           "| sha256:", meta["sha256"][:12])
     print("alert:", Path(alert.working_dir, "alert.txt").read_text().strip())
-    check(body["wind"] == 13.61 and body["units"] == "nautical", "8 m/s in knots")
+    check(body["wind"] == 13.61 and body["units"] == "nautical", "7 m/s in knots")

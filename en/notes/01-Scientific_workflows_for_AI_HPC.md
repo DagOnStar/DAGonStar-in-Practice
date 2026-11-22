@@ -136,7 +136,7 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 >
 > Every example is tested with DAGonStar 3.0.0, pinned in examples/requirements.txt.
 
-## 14. Fourteen task types
+## 14. Sixteen task types
 
 | Family | TaskType values | Lectures |
 |---|---|---|
@@ -147,6 +147,7 @@ Solid arrows: data dependencies (`workflow://`); dotted arrows: control dependen
 | AI | `LLM  AGENTIC` | 27-28, 33-35 |
 | Physical world | `IOT` | 31-32 |
 | Recovery | `CHECKPOINT` | 15 |
+| Workflows and storage | `META  VOLUME` | A2, A3 |
 
 ## 15. The course
 
