@@ -226,7 +226,7 @@ alert: gale warning
 [`examples/25-web-get/web_get.py`](../../examples/25-web-get/web_get.py)
 
 ```python
-check(body["wind"] == 13.61 and body["units"] == "nautical", "8 m/s in knots")
+check(body["wind"] == 13.61 and body["units"] == "nautical", "7 m/s in knots")
 ```
 
 - Value and units both checked
